@@ -1,0 +1,43 @@
+{
+  "protocol": "Training-only imputation/scaling/PCA; training references; test-only candidates. Each simulated user likes one aspect and avoids another relative to a seed. Oracle utility is mean signed cosine in standardized original aspect features; binary relevance is the top test-catalog utility quintile (ties included). Aspect consistency maps signed utility from [-1,1] to [0,1]. Avoidance counts disliked-aspect cosine <= 0. Macro means over users. Generic baseline uses cosine over all standardized audio feature columns. Labels share input features with the model: these are alignment diagnostics, not independent human relevance or causal evidence.",
+  "seed": 42,
+  "simulated_users": 40,
+  "k": 10,
+  "rows": 32923,
+  "training_tracks": 25819,
+  "test_tracks": 3414,
+  "source": [
+    "fma"
+  ],
+  "available_aspects": [
+    "energy",
+    "melody",
+    "mood",
+    "timbre"
+  ],
+  "unavailable_aspects": [
+    "rhythm",
+    "tempo"
+  ],
+  "methods": {
+    "aspect": {
+      "aspect_consistency": 0.6981914916527092,
+      "precision_at_k": 0.9925,
+      "ndcg_at_k": 0.9937772918244352,
+      "negative_aspect_avoidance_rate": 0.99
+    },
+    "generic_cosine": {
+      "aspect_consistency": 0.49962030000336866,
+      "precision_at_k": 0.20249999999999999,
+      "ndcg_at_k": 0.19905067328545512,
+      "negative_aspect_avoidance_rate": 0.1
+    }
+  },
+  "aspect_minus_baseline": {
+    "aspect_consistency": 0.19857119164934056,
+    "precision_at_k": 0.79,
+    "ndcg_at_k": 0.7947266185389801,
+    "negative_aspect_avoidance_rate": 0.89
+  },
+  "features_sha256": "8902e2c8e5c172a8a78fe38743030448ced5396a69cbde0672bbf6c0a3215ebc"
+}
