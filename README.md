@@ -1,6 +1,6 @@
 # Rock song recommender
 
-Data preparation scaffold for a future content-based rock-song recommender.
+Aspect-based rock-song recommendations from precomputed audio features.
 Python 3.10+; no audio download or librosa installation is needed.
 
 ```powershell
@@ -22,8 +22,8 @@ FMA CSVs use multirow headers. The pipeline finds Rock in `genres.csv`, filters
 the precomputed librosa `features.csv` by track ID. Features stream in chunks.
 Output columns: `track_id`, `title`, `artist`, `genre`, `split`, `source`, then
 numeric `family__statistic__dimension` columns. Missing values remain missing;
-imputation and scaling belong in a future training pipeline fitted on training
-data only. The source split is retained for evaluation.
+imputation, scaling and PCA are fitted on training rows only by `src.embeddings`.
+The source split is retained for evaluation.
 
 Data attribution: Michaël Defferrard, Kirell Benzi, Pierre Vandergheynst, and
 Xavier Bresson, *FMA: A Dataset for Music Analysis*, ISMIR 2017
@@ -47,5 +47,68 @@ to FMA's complete feature set. Inspect `source` and provenance before training.
 Initial run, 2026-10-16: **synthetic fallback**; Pisa DNS failed and Facebook
 returned HTTP 403. No FMA data was acquired in that run.
 
-Next: fit training-only imputation/scaling and a nearest-neighbor baseline.
-Run data-pipeline checks with `python -m unittest discover -s tests`.
+Fit and save the per-aspect models locally:
+
+```powershell
+python -m src.embeddings --components 8
+python -m pytest -q
+```
+
+`models/aspect_embeddings.joblib` stores the feature schema, training medians,
+standard scaler and independent PCA for every available aspect. `models/` is
+gitignored. Only load trusted model files. Infinite values are treated as missing;
+columns missing throughout training and constant groups are excluded. When no
+`split` column exists, all input rows train the model; callers can instead pass
+an explicit boolean `training_mask` to `fit`.
+
+Aspect mappings (original FMA MultiIndex and flattened columns both work):
+
+| Aspect | Feature families |
+| --- | --- |
+| `rhythm` (beat/rhythm) | tempogram, fourier_tempogram, onset_strength, beat |
+| `tempo` | tempo, bpm |
+| `melody` | chroma_stft, chroma_cqt, chroma_cens |
+| `timbre` | mfcc, spectral_contrast |
+| `energy` | rms/rmse, zcr/zero_crossing_rate |
+| `mood` | tonnetz, spectral_centroid, spectral_rolloff |
+
+Mood is a harmonic/brightness proxy, not an emotional classification. Standard
+FMA features lack explicit beat and tempo measurements; supplying measured
+additional feature columns enables those aspects. Missing aspects appear in
+`unavailable_aspects` and selecting them raises an error. No tempo is inferred
+from unrelated timbral features.
+
+```python
+import pandas as pd
+from src.embeddings import AspectEmbeddings
+from src.recommender import AspectRecommender
+
+tracks = pd.read_csv("data/rock_features.csv", index_col=0)
+model = AspectEmbeddings.load()
+recommender = AspectRecommender(
+    model.transform(tracks),
+    liked_aspects=["melody"],
+    disliked_aspects=["timbre"],
+    seed_songs=[tracks.index[0]],  # optional
+)
+ranked = recommender.recommend(limit=10)
+print(tracks[["title", "artist"]].join(ranked, how="inner").sort_values("score", ascending=False))
+recommender.update_feedback(ranked.index[0], liked=True)
+updated = recommender.recommend(limit=10)
+```
+
+For each selected aspect, unit-length embedding vectors define the Rocchio
+query `q = sign * alpha * mean(seeds) + beta * mean(liked songs)
+- gamma * mean(disliked songs)`, where sign is +1 for a liked aspect and -1
+for a disliked aspect. The final score averages `vector @ q` over selected
+aspects only; returned aspect columns expose the individual contributions.
+Defaults are alpha=1, beta=0.75, gamma=0.25. Feedback is session-local, repeated
+votes replace earlier votes, and negative seed feedback removes that seed from
+the seed centroid. Song dislikes always repel within selected aspects.
+Seeds and voted songs are excluded from results by default.
+
+Without seeds, aspect likes/dislikes alone cannot identify a desired sound.
+The initial ranking uses signed `norm / (1 + norm)` as a distinctiveness prior
+(distance from the training mean); song feedback adds Rocchio terms. This
+prior describes feature prominence, not absolute energy, BPM, emotion, or
+recommendation quality. Use seeds for a specific musical reference.
