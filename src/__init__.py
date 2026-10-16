@@ -1,1 +1,1 @@
-"""Rock song recommender data preparation."""
+"""Hip hop / R&B aspect-based song recommender."""

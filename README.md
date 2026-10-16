@@ -1,153 +1,72 @@
-# Rock song recommender
+# Hip hop / R&B aspect recommender
 
-Aspect-based Rock recommendations from FMA precomputed audio features, with
-session-local Rocchio feedback, a Streamlit app, and an offline alignment benchmark.
-Python 3.10+; no audio download or librosa installation is needed.
+Steer recommendations by aspect, not just by song: pick a reference track, then choose what
+to **keep** (drums, vocals, melody, timbre, energy, mood, rhythm, tempo) and what to **avoid**,
+and give per-song thumbs up/down. Every result plays its 30-second preview in the app.
 
-## Run locally
+Python 3.10+, ffmpeg on PATH.
+
+## Run
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m src.data
-python -m src.embeddings --components 8
-python -m src.evaluate
+python -m src.catalog        # artists.txt -> data/catalog.csv + 30 s previews (~5 min)
+python -m src.features       # librosa features for every clip (~20 min for 1,000 tracks)
+python -m src.evaluate       # offline benchmark -> results/
 python -m streamlit run app.py
 ```
 
-Open the local URL printed by Streamlit. Choose optional reference songs, toggle
-aspects to like or dislike, and inspect titles, artists, scores, and per-aspect
-contributions. Like means match the seed in that aspect; dislike means avoid its
-sound in that aspect. Conflicting toggles display a validation message. Song
-feedback updates recommendations immediately and excludes seeds and voted tracks.
-Review previous votes to replace them, or clear all feedback. Votes persist across
-aspect changes within the browser session and are not stored on disk. The app
-fits and caches embeddings from the current CSV, so it also runs without a saved
-model. Set `SONG_FEATURES` to use a different compatible CSV.
+Edit [artists.txt](artists.txt) to change who is in the catalog. The current build has 1,027 tracks
+from 45 artists (Drake, Travis Scott, Kanye West, Kendrick Lamar, ...). Tests: `python -m pytest -q`.
 
-For an explicitly synthetic offline demonstration:
+## Data
 
-```powershell
-python -m src.data --synthetic
-python -m src.evaluate
-python -m streamlit run app.py --server.headless=true
-```
+Catalog metadata and 30-second previews come from the iTunes Search API (no key needed). Previews
+are for personal, local use: audio and features live in gitignored `data/` and are never committed.
+Spotify was not usable because it removed audio-features, audio-analysis and preview URLs for new apps.
 
-Synthetic mode overwrites the local feature table and provenance. It invents
-1,000 tracks and independent feature distributions (seed 42), not measured audio
-or real songs. The app and metrics identify this source. Rebuild from FMA to
-reproduce the committed results. Evaluation requires explicit `training` and
-`test` splits, at least two usable aspects, and at least k test tracks.
+## Aspects (all computed from the 30 s clip, `src/features.py`)
 
-## Results
-
-The committed [metrics](results/metrics.json) and
-[four example queries](results/example_queries.md) use **real FMA features**:
-32,923 Rock/descendant tracks, 25,819 training references, 3,414 held-out test
-candidates, 40 simulated users, k=10, random seed 42. Validation rows are unused.
-The metrics include the input SHA-256 for reproducibility.
-
-| Metric (macro mean over simulated users) | Aspect recommender | Generic cosine |
-| --- | ---: | ---: |
-| Aspect consistency | 0.6982 | 0.4996 |
-| Precision@10 | 0.9925 | 0.2025 |
-| NDCG@10 | 0.9938 | 0.1991 |
-| Negative-aspect avoidance rate | 0.9900 | 0.1000 |
-
-Each simulated user has a randomly sampled training reference and known
-preferences: match one aspect, avoid another. Both methods rank exactly the same
-test-only catalog. All imputation, scaling, and PCA fit training rows only. The
-aspect method uses independent PCA spaces; the generic baseline uses cosine
-similarity to the same seed over all standardized audio feature columns and
-ignores aspect preferences. No feedback is supplied in this benchmark.
-
-The scoring oracle uses standardized **original** feature families, before PCA.
-For each candidate, utility is `(cosine_liked - cosine_disliked) / 2`.
-Aspect consistency averages `(utility + 1) / 2` across recommendations. Binary
-relevance is membership in the top utility quintile of the test catalog, ties
-included. Precision is the relevant fraction of the top k; NDCG uses binary gains,
-log2 rank discounts, and the best possible ranking in that same catalog. Avoidance
-is the fraction with disliked-aspect cosine <= 0. All metrics lie in [0,1].
-
-**These high scores demonstrate feature alignment under a deliberately compatible
-simulator, not listener satisfaction.** The oracle shares feature families with
-the model, and the baseline cannot see the positive/negative aspect request.
-Top-quintile relevance is generous and synthetic preferences are simple. There
-are no human relevance labels, listening trials, statistical significance claims,
-or held-out real-user histories. Differences in dimensions and aspect weighting
-also affect this comparison. More complex preferences, artist-disjoint splits,
-independent labels, stronger baselines, and online evaluation remain future work.
-
-```powershell
-python -m src.evaluate --features data/rock_features.csv --users 40 --k 10 --seed 42 --output results
-python -m pytest -q
-```
-
-Verification on 2026-10-16: all 23 tests passed, including known-ranking metric
-checks, deterministic evaluation, test-only candidate checks, and Streamlit
-interaction tests. The actual FMA catalog rendered 10 recommendations in
-Streamlit's AppTest. A headless server returned `ok` from `/_stcore/health`, then
-was terminated and its process exit and closed port were verified.
-
-## Data and attribution
-
-`python -m src.data` caches `fma_metadata.zip` under gitignored `data/`, verifies
-its upstream SHA-1, and writes `rock_features.csv` plus `provenance.json`. It tries
-the Swiss, Pisa, then Facebook mirrors with shared 600-second and 500 MB download
-budgets; stalled reads may add up to 20 seconds. Verified archives work offline.
-Download failures trigger an announced synthetic fallback with the reason in
-provenance; parsing errors fail visibly. Check `source` before interpreting results.
-
-FMA multirow CSV headers are parsed explicitly. Rock and descendants are selected
-using `genres_all` or the top genre, then metadata and chunked features are joined
-by track ID. Columns are `track_id`, `title`, `artist`, `genre`, `split`, `source`,
-followed by `family__statistic__dimension` numeric audio summaries. No audio is
-acquired or played. Missing titles/artists remain missing rather than invented.
-
-Audio features come from **FMA, a CC-licensed dataset**. Attribution: Michael
-Defferrard, Kirell Benzi, Pierre Vandergheynst, and Xavier Bresson,
-*FMA: A Dataset for Music Analysis*, ISMIR 2017
-([paper](https://arxiv.org/abs/1612.01840),
-[dataset and licenses](https://github.com/mdeff/fma#acknowledgments-and-licenses)).
-Metadata/features are [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/);
-this filtered feature table is a modification. Recordings have individual
-artist-selected licenses; metadata licensing is not a blanket audio license.
-
-## Model and limitations
-
-| Aspect | Feature families |
+| Aspect | Features |
 | --- | --- |
-| Rhythm/beat | tempogram, fourier_tempogram, onset_strength, beat (optional) |
-| Tempo | tempo, bpm (optional) |
-| Melody | chroma_stft, chroma_cqt, chroma_cens |
-| Timbre | mfcc, spectral_contrast |
-| Energy | rms/rmse, zcr/zero_crossing_rate |
-| Mood | tonnetz, spectral_centroid, spectral_rolloff |
+| Rhythm | tempogram (24 bins), onset strength |
+| Tempo | BPM, onset density, beat regularity, pulse clarity |
+| Drums | MFCC / spectral contrast / loudness / low-end (<150 Hz) share of the percussive component |
+| Vocals | voice-band (200-4000 Hz) timbre of the harmonic mid channel, centre-vs-side energy |
+| Melody | chroma |
+| Timbre | MFCC, spectral contrast |
+| Energy | RMS, zero-crossing rate |
+| Mood | tonnetz, spectral centroid / rolloff (brightness and harmony proxy, not emotion) |
 
-**Tempo/beat caveat:** standard FMA features have no explicit beat or BPM
-measurements. Rhythm and tempo are unavailable and disabled in the app unless
-measured additional feature columns are supplied. Timbre does not substitute for
-BPM. Mood is a harmony/brightness proxy, not an emotional label; chroma summaries
-are not melody transcriptions, and energy features are imperfect perceptual proxies.
+**Vocals is a proxy, not source separation**: kick and bass also sit in the centre channel.
+A 30 s preview is one slice of a song, usually the hook. Each aspect gets its own median-imputed,
+standardised PCA space (up to 8 components), fit on training rows only.
 
-Independent aspect models use training-median imputation, standard scaling, and
-up to eight PCA components. Infinite values count as missing; wholly missing
-columns and constant groups are excluded. Saved models live in gitignored
-`models/aspect_embeddings.joblib`; load only trusted joblib files. Outside the
-benchmark, `AspectEmbeddings.fit` uses all rows if no split is supplied.
+## Recommender
 
-For each selected aspect, unit embeddings define the query:
-`q = sign * alpha * mean(seeds) + beta * mean(liked songs) - gamma * mean(disliked songs)`.
-Sign is +1 for liked aspects and -1 for disliked aspects. The score averages
-`vector @ q` across selected aspects only; defaults are alpha=1, beta=0.75,
-gamma=0.25. Negative feedback on a seed removes its positive reference. Song
-dislikes always repel, including within aspects marked disliked. Scores are
-relative rankings, not probabilities or calibrated musical quality.
+For each selected aspect with unit embeddings:
+`q = sign * alpha * mean(seeds) + beta * mean(liked songs) - gamma * mean(disliked songs)`,
+sign +1 for kept aspects and -1 for avoided ones. Score = mean of `vector @ q` over selected aspects.
+Defaults alpha=1, beta=0.75, gamma=0.25. Repeat votes replace earlier votes; seeds and voted songs
+are excluded. With no seed, toggles rank distinctiveness (distance from the average), not absolute
+values like "high BPM", so pick a seed.
 
-Without seeds, toggles alone cannot identify a desired sound: the initial prior
-uses signed `norm / (1 + norm)` (distance from the training mean). It does not
-mean high/low energy, absolute BPM, or a desired emotional value. Supply a seed
-for a specific reference. Feedback then adds Rocchio terms. This content-only
-prototype has no collaborative filtering, semantic lyrics, diversity constraint,
-audio playback, or guarantees of subjective similarity.
+## Evaluation (read this honestly)
+
+`python -m src.evaluate` simulates 40 users who each keep one aspect and avoid another relative to a
+seed, with test-only candidates and training-only preprocessing. Latest run (1,027 tracks, 106 test):
+
+| Metric | Aspect recommender | Generic cosine |
+| --- | ---: | ---: |
+| Precision@10 | 0.970 | 0.260 |
+| NDCG@10 | 0.979 | 0.276 |
+| Negative-aspect avoidance | 0.953 | 0.263 |
+
+The oracle uses the same feature families as the model and the baseline cannot see the request, so
+this shows feature alignment, not listener satisfaction. With only 106 test candidates it is also
+coarse. Real validation is you listening: play the previews and judge.
+
+## Not yet
+
+Collaborative filtering, real vocal separation, artist-disjoint splits, a larger catalog
+(`artists.txt` is the knob), and a hosted version (previews would stay streamed from Apple).

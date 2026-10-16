@@ -12,7 +12,8 @@ def test_app_feedback_and_aspect_validation(tmp_path, monkeypatch):
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py")).run(timeout=30)
     assert not app.exception
     assert len(app.dataframe[0].value) == 10
-    assert app.toggle(key="like_tempo").disabled
+    assert not app.toggle(key="like_tempo").disabled
+    assert not app.toggle(key="like_drums").disabled
     first = app.dataframe[0].value.index[0]
     app.button(key=f"up_{first}").click().run()
     assert not app.exception
@@ -35,4 +36,4 @@ def test_missing_catalog_is_actionable(tmp_path, monkeypatch):
     monkeypatch.setenv("SONG_FEATURES", str(tmp_path / "missing.csv"))
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py")).run()
     assert not app.exception
-    assert "python -m src.data" in app.error[0].value
+    assert "python -m src.catalog" in app.error[0].value

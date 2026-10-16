@@ -1,0 +1,47 @@
+# One artist per line. Edit freely, then run: python -m src.catalog
+Drake
+Travis Scott
+Kanye West
+Kendrick Lamar
+J. Cole
+Future
+21 Savage
+Lil Baby
+Lil Uzi Vert
+Playboi Carti
+A$AP Rocky
+Tyler, The Creator
+Jay-Z
+Nas
+Eminem
+Lil Wayne
+Nicki Minaj
+Cardi B
+Megan Thee Stallion
+Doja Cat
+Post Malone
+Juice WRLD
+XXXTENTACION
+Young Thug
+Gunna
+Migos
+Metro Boomin
+Don Toliver
+Roddy Ricch
+DaBaby
+Kid Cudi
+Childish Gambino
+50 Cent
+Snoop Dogg
+Dr. Dre
+The Weeknd
+SZA
+Frank Ocean
+Bryson Tiller
+PARTYNEXTDOOR
+Summer Walker
+Daniel Caesar
+Brent Faiyaz
+Usher
+Chris Brown
+Beyoncé

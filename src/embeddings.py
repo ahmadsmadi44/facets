@@ -13,11 +13,12 @@ from sklearn.preprocessing import StandardScaler
 
 MODELS_DIR = Path(__file__).resolve().parents[1] / "models"
 # Match feature families exactly, never metadata or unrelated numeric columns.
-# FMA's standard features.csv has no beat/tempo measurements. These two
-# aspects become available only when callers supply measured extra features.
+# Drums and vocals come from src.features (percussive component; voice-band proxy).
 ASPECT_GROUPS = {
     "rhythm": ("tempogram", "fourier_tempogram", "onset_strength", "beat"),
     "tempo": ("tempo", "bpm"),
+    "drums": ("perc_mfcc", "perc_contrast", "perc_rms", "perc_low"),
+    "vocals": ("vocal_mfcc", "vocal_band"),
     "melody": ("chroma_stft", "chroma_cqt", "chroma_cens"),
     "timbre": ("mfcc", "spectral_contrast"),
     "energy": ("rms", "rmse", "zcr", "zero_crossing_rate"),
@@ -116,7 +117,7 @@ class AspectEmbeddings:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--features", type=Path, default=Path("data/rock_features.csv"))
+    parser.add_argument("--features", type=Path, default=Path("data/hiphop_features.csv"))
     parser.add_argument("--models-dir", type=Path, default=MODELS_DIR)
     parser.add_argument("--components", type=int, default=8)
     args = parser.parse_args()

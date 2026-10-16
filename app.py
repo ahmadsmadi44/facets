@@ -22,26 +22,24 @@ def vote(track, liked):
 
 
 def main():
-    st.set_page_config(page_title="Rock aspect recommender", layout="wide")
-    st.title("Rock aspect recommender")
-    st.caption("Audio features come from FMA, a CC-licensed dataset. Metadata/features: CC BY 4.0; "
-               "recordings have individual artist-selected licenses. No audio is hosted here.")
-    st.markdown("[FMA attribution and licenses](https://github.com/mdeff/fma#acknowledgments-and-licenses): "
-                "Defferrard, Benzi, Vandergheynst & Bresson, ISMIR 2017.")
-    path = Path(os.environ.get("SONG_FEATURES", Path(__file__).parent / "data/rock_features.csv"))
+    st.set_page_config(page_title="Hip hop aspect recommender", layout="wide")
+    st.title("Hip hop aspect recommender")
+    st.caption("Features are computed from 30-second iTunes previews for personal, local use. "
+               "Previews play from Apple's servers; no audio is stored in this repository.")
+    path = Path(os.environ.get("SONG_FEATURES", Path(__file__).parent / "data/hiphop_features.csv"))
     try:
         tracks, embeddings = load_catalog(str(path), path.stat().st_mtime_ns)
     except (OSError, ValueError) as exc:
-        st.error(f"Cannot load catalog: {exc}. Run python -m src.data first.")
+        st.error(f"Cannot load catalog: {exc}. Run python -m src.catalog then python -m src.features first.")
         st.stop()
     source = ", ".join(sorted(tracks.source.dropna().unique())) if "source" in tracks else "unknown"
     st.info(f"Catalog: {len(tracks):,} tracks · source: {source}")
-    if source != "fma":
+    if source != "itunes_preview":
         st.warning("Synthetic or unknown source: these features do not demonstrate real musical quality.")
     st.caption("Like = match this aspect of the seed; dislike = avoid it. Without a seed, toggles "
                "rank feature distinctiveness, not high/low aspect values. Mood is a brightness/harmony proxy.")
-    st.caption("Tempo/beat: standard FMA features have no explicit BPM or beat measurements; "
-               "these controls remain unavailable without measured additional features.")
+    st.caption("Drums = percussive component of the clip. Vocals = a voice-band / stereo-centre proxy, "
+               "not true vocal separation.")
     liked, disliked = [], []
     for aspect in ASPECT_GROUPS:
         cols = st.columns([2, 1, 1])
@@ -83,6 +81,8 @@ def main():
     for track in ranked.index:
         cols = st.columns([6, 1, 1])
         cols[0].write(label(track))
+        if isinstance(tracks.loc[track].get("preview_url"), str):
+            cols[0].audio(tracks.loc[track]["preview_url"])
         cols[1].button("Like song", key=f"up_{track}", on_click=vote, args=(track, True))
         cols[2].button("Dislike song", key=f"down_{track}", on_click=vote, args=(track, False))
     if st.session_state.feedback:

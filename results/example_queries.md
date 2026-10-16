@@ -1,79 +1,79 @@
 # Four reproducible example queries
 
-Source: fma. Like/dislike means similarity/avoidance relative to the seed, not high/low BPM or mood.
+Source: itunes_preview. Like/dislike means similarity/avoidance relative to the seed, not high/low BPM or mood.
 
 ## Query 1
 
-Seed: 12227: Good Riddance — Phil Reavis
+Seed: 1440908096: DNA. — Kendrick Lamar
 
-Like **timbre**; dislike **mood**.
+Like **vocals**; dislike **tempo**.
 
 | Rank | Aspect recommender | Generic cosine |
 | --- | --- | --- |
-| 1 | 91282: seminéoproantiantiantifolk — Gablé | 119597: Alley — Pee-Bug |
-| 2 | 143183: sensoII — .zigo | 34882: The Best Time Of Your Life — Carnivorous Birds |
-| 3 | 143163: sensoII — .zigo | 144414: A Bottle Of Red Wine In The Park — The Family Simpson |
-| 4 | 112800: Люди Китая — Митрий Гранков | 73158: Is That Not Beautiful Enough? — The Family Simpson |
-| 5 | 126854: When I Die — Jeremy Gluck and Michael Dent | 35910: Married at Sunset — Carnivorous Birds |
-| 6 | 91274: faux — Gablé | 35929: Pleonastic Castration — Carnivorous Birds |
-| 7 | 48540: Introduction from Mike — Ten Thousand Free Men & Their Families | 49146: Swag (talk) — R. Stevie Moore |
-| 8 | 13163: The Way The Cookie Crumbles Straight From The Horse S Mouth — Blevin Blectum | 88051: Mellow Winkles — RÉGIS VICTOR |
-| 9 | 112802: Мед-ве-ди-де-ли-ли — Митрий Гранков | 88055: 6 oeufs c'est ce qu'y faut — RÉGIS VICTOR |
-| 10 | 133211: Long Road Ahead — Audiobinger | 96159: Done with You — Shannon And The Clams |
+| 1 | 1683195631: Who Am I (What’s My Name)? — Snoop Dogg | 1454072831: Pony — DaBaby |
+| 2 | 1031334695: Sorry Not Sorry — Bryson Tiller | 1392816072: Yes Indeed — Lil Baby & Drake |
+| 3 | 265104395: Ether — Nas | 1454072818: Taking It Out — DaBaby |
+| 4 | 6791695695: Dead Fresh — Lil Baby | 1274598336: Dark Queen — Lil Uzi Vert |
+| 5 | 208624172: Crazy In Love (feat. JAŸ-Z) — Beyoncé | 1447452177: can't leave without it — 21 Savage |
+| 6 | 1799080777: Hold Me Down — Daniel Caesar | 1494388436: Life Is Good (feat. Drake) — Future |
+| 7 | 386153613: Confessions, Pt. II (Confessions Special Edition Version) — USHER | 1533349972: Always Forever — Bryson Tiller |
+| 8 | 1447201613: Wow. — Post Malone | 1621203172: Frozen — Lil Baby |
+| 9 | 422045131: Wet the Bed (feat. Ludacris) — Chris Brown | 1526575718: Righteous — Juice WRLD |
+| 10 | 1440916690: River (feat. Ed Sheeran) — Eminem | 1440956572: Only (feat. Drake, Lil Wayne & Chris Brown) — Nicki Minaj |
 
 ## Query 2
 
-Seed: 60425: Killer Incense — Sister Fucker
+Seed: 1486465098: Won't Bite (feat. Smino) — Doja Cat
 
-Like **mood**; dislike **energy**.
+Like **timbre**; dislike **drums**.
 
 | Rank | Aspect recommender | Generic cosine |
 | --- | --- | --- |
-| 1 | 34373: Everything Is Alive- Riding The Riff — Homemade-LoFi-Psych | 82468: America (She Can't Say No) — Throwing Muses |
-| 2 | 122116: Ed Sullivan's Desayuno — Los Antiguos Jovenes | 150573: Year Zero — S-21 |
-| 3 | 140420: Astronaut — Rom-Com | 40356: Omnivora — Megamaut |
-| 4 | 97145: How to Burn a CD — Honnda | 40348: Omnivora — Megamaut |
-| 5 | 61817: SAAD SPEAKS — Ed Saad | 97232: Girl — The Zombiecops |
-| 6 | 74300: Cuchilla Humeante en El Calabozo — Criadero en Seres | 48981: A.I.D.S. — Les Baudouins Morts |
-| 7 | 86075: Felonthenek — COW | 6887: Dust Mah Space Broom/Cowboys — The Lothars |
-| 8 | 34408: Fondu- Nolo — Homemade-LoFi-Psych | 62549: see real blood (live) — King Ghidorah! |
-| 9 | 129171: optimism — The Rories | 154259: Silver Balloons — half cocked |
-| 10 | 56929: Hit and Run — Jack Ruby | 30168: Halloween — White Mystery |
+| 1 | 1694344477: Patience (feat. Don Toliver) — Lil Uzi Vert | 1274598336: Dark Queen — Lil Uzi Vert |
+| 2 | 1714908977: High For This — The Weeknd | 1533349972: Always Forever — Bryson Tiller |
+| 3 | 1589899795: You (feat. Travis Scott) — Don Toliver | 1454072831: Pony — DaBaby |
+| 4 | 1441989359: Midnight — Mike WiLL Made-It, Tessa Thompson & Gunna | 1526575718: Righteous — Juice WRLD |
+| 5 | 1681332013: Let Me Go — Daniel Caesar | 1623258536: I Like You (A Happier Song) [feat. Doja Cat] — Post Malone |
+| 6 | 1742607795: R e s e n t m e n t — PARTYNEXTDOOR | 1439777572: Money — Cardi B |
+| 7 | 1440872113: A Lonely Night — The Weeknd | 1845569636: Finally Over It — Summer Walker |
+| 8 | 1714909177: Montreal — The Weeknd | 1239977713: Love Galore (feat. Travis Scott) — SZA |
+| 9 | 1546390013: Good Days — SZA | 386153613: Confessions, Pt. II (Confessions Special Edition Version) — USHER |
+| 10 | 1421658659: CAN'T SAY — Travis Scott | 1494388436: Life Is Good (feat. Drake) — Future |
 
 ## Query 3
 
-Seed: 29406: ballad of the cheeseburger — AlexandreDavidGabriel
+Seed: 1313343137: Skir Skirr — Lil Uzi Vert
 
-Like **energy**; dislike **mood**.
+Like **drums**; dislike **rhythm**.
 
 | Rank | Aspect recommender | Generic cosine |
 | --- | --- | --- |
-| 1 | 17041: Cold Air — Tusk Lord | 126860: The Point Is — Jeremy Gluck and Michael Dent |
-| 2 | 7196: Intro — The Death Set | 62148: Interview — Bitches |
-| 3 | 4106: ?? — Psychedelic Horseshit | 47602: Chatting with Terre T — Shannon And The Clams |
-| 4 | 48980: Zelfvolmaking/Opa/Mol Jean-Pol — Les Baudouins Morts | 34409: Nature Sounds- Wolf Burn — Homemade-LoFi-Psych |
-| 5 | 80203: The Next Degree — Cosmic Analog Ensemble | 16221: Why I hate birthday songs — Popeye Experience |
-| 6 | 14490: Pest Control — Unmen | 96165: Tired Of Being Bad — Shannon And The Clams |
-| 7 | 144483: The Beyond — Scrapple | 34865: My Heart — Carnivorous Birds |
-| 8 | 7204: Bombshell — The Death Set | 107981: FaceB — Oso et les Léopards du vin rouge |
-| 9 | 4105: C Song — Psychedelic Horseshit | 76096: Interview — Echo Beach |
-| 10 | 137693: Beautiful and Dark — Ars Sonor & XXIXI | 13163: The Way The Cookie Crumbles Straight From The Horse S Mouth — Blevin Blectum |
+| 1 | 1714908977: High For This — The Weeknd | 1541442536: Patek — Future & Lil Uzi Vert |
+| 2 | 1799080913: Transform (feat. Charlotte Day Wilson) — Daniel Caesar | 1752794431: NEW DROP — Don Toliver |
+| 3 | 1445277813: I Need a Doctor (feat. Eminem & Skylar Grey) — Dr. Dre | 1368105795: Drip (feat. Migos) — Cardi B |
+| 4 | 1674022913: Bus Stop (feat. Brent Faiyaz) — Don Toliver | 1442846336: I Wonder — Kanye West |
+| 5 | 1440916690: River (feat. Ed Sheeran) — Eminem | 1445866454: Monster (feat. JAŸ-Z, Rick Ross, Nicki Minaj & Bon Iver) — Kanye West, JAŸ-Z, Rick Ross, Nicki Minaj & Bon Iver |
+| 6 | 1711601731: Excitement — Trippie Redd & PARTYNEXTDOOR | 6791695695: Dead Fresh — Lil Baby |
+| 7 | 1274598336: Dark Queen — Lil Uzi Vert | 1683195631: Who Am I (What’s My Name)? — Snoop Dogg |
+| 8 | 1067479913: Paradise — Lil Uzi Vert | 1274598331: UnFazed (feat. The Weeknd) — Lil Uzi Vert |
+| 9 | 1549039131: Bad Boy — Juice WRLD & Young Thug | 1440903654: King's Dead — Jay Rock, Kendrick Lamar, Future, James Blake |
+| 10 | 1745756772: To Be Hunted — Childish Gambino | 1549039131: Bad Boy — Juice WRLD & Young Thug |
 
 ## Query 4
 
-Seed: 110859: Talking Central Park Blues — Ultimate Painting
+Seed: 258231264: Give It 2 'Em Dogg — Snoop Dogg & Tha Eastsidaz
 
-Like **mood**; dislike **timbre**.
+Like **tempo**; dislike **vocals**.
 
 | Rank | Aspect recommender | Generic cosine |
 | --- | --- | --- |
-| 1 | 47520: Sweet Little Stranger — Bare Wires | 73429: Certificate of Live Birth — Greg Gibbs |
-| 2 | 47522: Loner — Bare Wires | 46722: B. Aldrian — Harald Grosskopf with Axel Heilhecker |
-| 3 | 61805: FREE RULES — Ed Saad | 154817: La ville aux ponts suspendus — Komiku |
-| 4 | 14156: Slipping Away — Screen Vinyl Image | 142645: Elena's Stars — Westy Reflector |
-| 5 | 70695: Cult Chimera — Gay Witch Abortion | 33039: Do The Math — Asthmaboy |
-| 6 | 73517: Pound Of Flesh — Hounds Of Hate | 123169: Upon A Child's Doll Reflection [disquiet0180-matryoshkamusic] — Westy Reflector |
-| 7 | 48988: Gij ziet af — Les Baudouins Morts | 75600: Brown County Bound — Reverend Peyton's Big Damn Band |
-| 8 | 32321: sclerino — Exteenager | 131459: This Currency Exchanged — SAVAK |
-| 9 | 75166: Mar'grrrr'itaville — +HIRS+ | 45588: slow ok — Gablé |
-| 10 | 47519: Chatting with Terre T — Bare Wires | 123771: faline — Mild Maynyrd |
+| 1 | 1714909177: Montreal — The Weeknd | 1540158577: Drankin N Smokin — Future & Lil Uzi Vert |
+| 2 | 1447201613: Wow. — Post Malone | 1463430395: Pimpin — Megan Thee Stallion |
+| 3 | 386153613: Confessions, Pt. II (Confessions Special Edition Version) — USHER | 1406109777: Nonstop — Drake |
+| 4 | 261707231: Freakum Dress — Beyoncé | 1453759795: 3 Headed Snake (feat. Young Thug) — Gunna |
+| 5 | 1752794431: NEW DROP — Don Toliver | 1223060395: If I Ruled the World (Imagine That) [feat. Lauryn Hill] — Nas |
+| 6 | 422045131: Wet the Bed (feat. Ludacris) — Chris Brown | 1440903654: King's Dead — Jay Rock, Kendrick Lamar, Future, James Blake |
+| 7 | 1440836236: Nuthin' but a "G" Thang (feat. Snoop Dogg) — Dr. Dre | 1541244059: Body — Megan Thee Stallion |
+| 8 | 1745756772: To Be Hunted — Childish Gambino | 1447452172: out for the night — 21 Savage |
+| 9 | 1440763831: Touch the Sky (feat. Lupe Fiasco) — Kanye West | 1368105795: Drip (feat. Migos) — Cardi B |
+| 10 | 6797579877: like it was. [bonus track] — Brent Faiyaz | 6791695695: Dead Fresh — Lil Baby |

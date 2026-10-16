@@ -132,7 +132,7 @@ def write_results(frame, metrics, examples, output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--features", type=Path, default=Path("data/rock_features.csv"))
+    parser.add_argument("--features", type=Path, default=Path("data/hiphop_features.csv"))
     parser.add_argument("--output", type=Path, default=Path("results"))
     parser.add_argument("--users", type=int, default=40)
     parser.add_argument("--k", type=int, default=10)

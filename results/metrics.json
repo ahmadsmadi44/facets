@@ -3,41 +3,42 @@
   "seed": 42,
   "simulated_users": 40,
   "k": 10,
-  "rows": 32923,
-  "training_tracks": 25819,
-  "test_tracks": 3414,
+  "rows": 1027,
+  "training_tracks": 823,
+  "test_tracks": 106,
   "source": [
-    "fma"
+    "itunes_preview"
   ],
   "available_aspects": [
+    "drums",
     "energy",
     "melody",
     "mood",
-    "timbre"
-  ],
-  "unavailable_aspects": [
     "rhythm",
-    "tempo"
+    "tempo",
+    "timbre",
+    "vocals"
   ],
+  "unavailable_aspects": [],
   "methods": {
     "aspect": {
-      "aspect_consistency": 0.6981914916527092,
-      "precision_at_k": 0.9925,
-      "ndcg_at_k": 0.9937772918244352,
-      "negative_aspect_avoidance_rate": 0.99
+      "aspect_consistency": 0.7183124366634843,
+      "precision_at_k": 0.9700000000000001,
+      "ndcg_at_k": 0.9789710594680882,
+      "negative_aspect_avoidance_rate": 0.9525
     },
     "generic_cosine": {
-      "aspect_consistency": 0.49962030000336866,
-      "precision_at_k": 0.20249999999999999,
-      "ndcg_at_k": 0.19905067328545512,
-      "negative_aspect_avoidance_rate": 0.1
+      "aspect_consistency": 0.5155470294129622,
+      "precision_at_k": 0.26,
+      "ndcg_at_k": 0.27600766512633557,
+      "negative_aspect_avoidance_rate": 0.2625
     }
   },
   "aspect_minus_baseline": {
-    "aspect_consistency": 0.19857119164934056,
-    "precision_at_k": 0.79,
-    "ndcg_at_k": 0.7947266185389801,
-    "negative_aspect_avoidance_rate": 0.89
+    "aspect_consistency": 0.20276540725052217,
+    "precision_at_k": 0.7100000000000001,
+    "ndcg_at_k": 0.7029633943417526,
+    "negative_aspect_avoidance_rate": 0.69
   },
-  "features_sha256": "8902e2c8e5c172a8a78fe38743030448ced5396a69cbde0672bbf6c0a3215ebc"
+  "features_sha256": "3f13a6ecbbba92e0901e762aae87566563d8bebae5393975ade91a9b682dc27d"
 }

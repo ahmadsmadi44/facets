@@ -6,9 +6,9 @@ from src.data import synthetic_features
 from src.embeddings import ASPECT_GROUPS, AspectEmbeddings, aspect_columns
 
 
-def test_mapping_covers_fma_and_optional_measurements():
+def test_mapping_covers_every_aspect():
     families = ["tempogram", "tempo", "chroma_cens", "mfcc", "spectral_contrast",
-                "rmse", "zcr", "tonnetz", "spectral_centroid"]
+                "rmse", "zcr", "tonnetz", "spectral_centroid", "perc_mfcc", "vocal_mfcc"]
     frame = pd.DataFrame(columns=pd.MultiIndex.from_tuples(
         [(family, "mean", "01") for family in families]))
     groups = aspect_columns(frame)
@@ -20,6 +20,7 @@ def test_mapping_covers_fma_and_optional_measurements():
 
 def test_training_only_fit_missing_values_and_saved_roundtrip(tmp_path):
     frame = synthetic_features(40)
+    frame = frame.drop(columns=[c for c in frame if c.split("__")[0] in {"tempogram", "onset_strength", "tempo"}])
     frame["split"] = ["training"] * 30 + ["test"] * 10
     frame.loc[1, "mfcc__mean__00"] = np.nan
     frame.loc[2, "rms__mean__00"] = np.inf
