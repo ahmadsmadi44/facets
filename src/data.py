@@ -15,6 +15,7 @@ import requests
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 URLS = (
+    "https://os.unil.cloud.switch.ch/fma/fma_metadata.zip",
     "https://os.unipi.it/mirror/fma/fma_metadata.zip",
     "https://dl.fbaipublicfiles.com/fma/fma_metadata.zip",
 )
@@ -30,12 +31,13 @@ def checksum(path):
 
 
 def download(data_dir, timeout_seconds=600):
-    """Try both mirrors within a shared budget; never cache a partial archive."""
+    """Try mirrors within shared time/byte budgets; never cache a partial archive."""
     archive = data_dir / "fma_metadata.zip"
     if archive.exists() and checksum(archive) == SHA1:
         return archive, "cached FMA archive (verified upstream SHA-1)"
     deadline = time.monotonic() + timeout_seconds
     errors = []
+    remaining_bytes = 500_000_000
     partial = archive.with_suffix(".zip.part")
     for url in URLS:
         remaining = deadline - time.monotonic()
@@ -46,8 +48,13 @@ def download(data_dir, timeout_seconds=600):
         try:
             with requests.get(url, stream=True, timeout=(min(10, remaining), min(20, remaining))) as response:
                 response.raise_for_status()
+                if int(response.headers.get("Content-Length", 0)) > remaining_bytes:
+                    raise ValueError("archive exceeds remaining 500 MB download budget")
                 with partial.open("wb") as stream:
                     for block in response.iter_content(256 * 1024):
+                        remaining_bytes -= len(block)
+                        if remaining_bytes < 0:
+                            raise ValueError("shared 500 MB download budget exhausted")
                         if time.monotonic() >= deadline:
                             raise TimeoutError("shared download budget exhausted")
                         stream.write(block)
