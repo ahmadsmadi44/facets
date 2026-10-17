@@ -1,8 +1,9 @@
 # Hip hop / R&B aspect recommender
 
-Steer recommendations by aspect, not just by song: pick a reference track, then choose what
-to **keep** (drums, vocals, melody, timbre, energy, mood, rhythm, tempo) and what to **avoid**,
-and give per-song thumbs up/down. Every result plays its 30-second preview in the app.
+Pick a song you like (e.g. One Dance), say **what you like about it**, and get songs that match
+that part. Two ways to say it: tap aspect buttons (beat, rapping, melody, drums, vibe, ...) or
+describe it in your own words ("the dancehall beat with the rapping, but not the drums"; the app
+shows what it understood). Every result plays its 30-second preview, with thumbs up/down to refine.
 
 Python 3.10+, ffmpeg on PATH.
 

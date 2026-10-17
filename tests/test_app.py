@@ -3,33 +3,50 @@ from pathlib import Path
 from streamlit.testing.v1 import AppTest
 
 from src.data import synthetic_features
+from src.intent import parse_preferences
 
 
-def test_app_feedback_and_aspect_validation(tmp_path, monkeypatch):
+def run(tmp_path, monkeypatch, rows=60):
     path = tmp_path / "features.csv"
-    synthetic_features(60).to_csv(path)
+    synthetic_features(rows).to_csv(path)
     monkeypatch.setenv("SONG_FEATURES", str(path))
-    app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py")).run(timeout=30)
+    return AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py")).run(timeout=30)
+
+
+def vote_buttons(app, prefix="up_"):
+    return [b for b in app.button if b.key and b.key.startswith(prefix)]
+
+
+def test_parse_text_into_liked_and_disliked_aspects():
+    liked, _ = parse_preferences("the dancehall beat with the rapping")
+    assert {"rhythm", "tempo", "drums", "vocals"} <= set(liked)
+    liked, disliked = parse_preferences("the melody but not the drums")
+    assert "melody" in liked and disliked == ["drums"]
+    assert parse_preferences("zzz") == ([], [])
+    assert parse_preferences("the beat", available=["vocals"]) == ([], [])
+
+
+def test_pick_aspects_then_feedback(tmp_path, monkeypatch):
+    app = run(tmp_path, monkeypatch)
     assert not app.exception
-    assert len(app.dataframe[0].value) == 10
-    assert not app.toggle(key="like_tempo").disabled
-    assert not app.toggle(key="like_drums").disabled
-    first = app.dataframe[0].value.index[0]
-    app.button(key=f"up_{first}").click().run()
+    assert any("at least one" in item.value for item in app.info)
+    app.pills(key="likes").set_value(["vocals", "rhythm"]).run()
     assert not app.exception
-    assert app.session_state.feedback[first] is True
-    assert first not in app.dataframe[0].value.index
-    app.button(key=f"replace_{first}").click().run()
-    assert app.session_state.feedback[first] is False
-    next(button for button in app.button if button.label == "Clear song feedback").click().run()
-    assert not app.session_state.feedback
-    app.toggle(key="dislike_melody").set_value(True).run()
-    assert any("either like or dislike" in item.value for item in app.warning)
+    ups = vote_buttons(app)
+    assert len(ups) == 10
+    track = ups[0].key[3:]
+    ups[0].click().run()
+    assert app.session_state.feedback[int(track)] is True
+    assert f"up_{track}" not in [b.key for b in app.button]
+
+
+def test_describe_mode_shows_understanding(tmp_path, monkeypatch):
+    app = run(tmp_path, monkeypatch)
+    app.segmented_control(key="mode").set_value("Describe it").run()
+    app.text_area(key="text").set_value("I love the rapping and the beat").run()
     assert not app.exception
-    app.toggle(key="like_melody").set_value(False).run()
-    assert len(app.dataframe[0].value) == 10
-    app.toggle(key="dislike_melody").set_value(False).run()
-    assert any("Select at least" in item.value for item in app.info)
+    assert any("I understood" in item.value for item in app.caption)
+    assert len(vote_buttons(app)) == 10
 
 
 def test_missing_catalog_is_actionable(tmp_path, monkeypatch):

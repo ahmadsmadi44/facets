@@ -1,4 +1,4 @@
-"""Local, session-scoped Streamlit interface to the aspect recommender."""
+"""Pick a song, say what you like about it, get songs that match that."""
 
 import os
 from pathlib import Path
@@ -6,8 +6,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from src.embeddings import ASPECT_GROUPS, AspectEmbeddings
+from src.embeddings import AspectEmbeddings
+from src.intent import LABELS, parse_preferences
 from src.recommender import AspectRecommender
+
+DEFAULT_SONG = "One Dance"
 
 
 @st.cache_resource
@@ -22,10 +25,8 @@ def vote(track, liked):
 
 
 def main():
-    st.set_page_config(page_title="Hip hop aspect recommender", layout="wide")
-    st.title("Hip hop aspect recommender")
-    st.caption("Features are computed from 30-second iTunes previews for personal, local use. "
-               "Previews play from Apple's servers; no audio is stored in this repository.")
+    st.set_page_config(page_title="Song aspect recommender", layout="wide")
+    st.title("Find more songs like the part you love")
     path = Path(os.environ.get("SONG_FEATURES", Path(__file__).parent / "data/hiphop_features.csv"))
     try:
         tracks, embeddings = load_catalog(str(path), path.stat().st_mtime_ns)
@@ -33,60 +34,83 @@ def main():
         st.error(f"Cannot load catalog: {exc}. Run python -m src.catalog then python -m src.features first.")
         st.stop()
     source = ", ".join(sorted(tracks.source.dropna().unique())) if "source" in tracks else "unknown"
-    st.info(f"Catalog: {len(tracks):,} tracks · source: {source}")
     if source != "itunes_preview":
         st.warning("Synthetic or unknown source: these features do not demonstrate real musical quality.")
-    st.caption("Like = match this aspect of the seed; dislike = avoid it. Without a seed, toggles "
-               "rank feature distinctiveness, not high/low aspect values. Mood is a brightness/harmony proxy.")
-    st.caption("Drums = percussive component of the clip. Vocals = a voice-band / stereo-centre proxy, "
-               "not true vocal separation.")
-    liked, disliked = [], []
-    for aspect in ASPECT_GROUPS:
-        cols = st.columns([2, 1, 1])
-        available = aspect in embeddings
-        cols[0].write(aspect.title() + ("" if available else " (unavailable)"))
-        like = cols[1].toggle(f"Like {aspect}", value=aspect == "melody" and available,
-                              disabled=not available, key=f"like_{aspect}")
-        dislike = cols[2].toggle(f"Dislike {aspect}", disabled=not available, key=f"dislike_{aspect}")
-        if like and available:
-            liked.append(aspect)
-        if dislike and available:
-            disliked.append(aspect)
+    available = [a for a in LABELS if a in embeddings]
+
     def label(track):
-        return f"{track}: {tracks.loc[track].get('title', 'Unknown title')} — {tracks.loc[track].get('artist', 'Unknown artist')}"
-    seeds = st.multiselect("Reference songs (optional)", tracks.index.tolist(), format_func=label)
-    limit = st.slider("Number of recommendations", 1, 20, 10)
+        row = tracks.loc[track]
+        return f"{row.get('title', 'Unknown title')} — {row.get('artist', 'Unknown artist')}"
+
     if st.session_state.get("catalog_key") != (str(path), path.stat().st_mtime_ns):
         st.session_state.feedback = {}
         st.session_state.catalog_key = (str(path), path.stat().st_mtime_ns)
-    if st.button("Clear song feedback"):
-        st.session_state.feedback = {}
-    st.caption(f"{len(st.session_state.feedback)} song votes in this session. Votes persist across aspect "
-               "changes; clear them to start over. A new vote replaces an old vote.")
-    if set(liked) & set(disliked):
-        st.warning("Choose either like or dislike for each aspect.")
-        st.stop()
+
+    st.subheader("1. Pick a song you like")
+    ids = tracks.index.tolist()
+    default = next((i for i in ids if DEFAULT_SONG.lower() in str(tracks.loc[i].get("title", "")).lower()), ids[0])
+    seed = st.selectbox("Search the catalog", ids, index=ids.index(default), format_func=label, key="seed")
+    picked = tracks.loc[seed]
+    left, right = st.columns([1, 4])
+    if isinstance(picked.get("artwork"), str):
+        left.image(picked["artwork"])
+    right.markdown(f"**{label(seed)}**")
+    if isinstance(picked.get("preview_url"), str):
+        right.audio(picked["preview_url"])
+
+    st.subheader("2. What do you like about it?")
+    mode = st.segmented_control("How do you want to tell me?", ["Pick aspects", "Describe it"],
+                                default="Pick aspects", key="mode")
+    liked, disliked = [], []
+    if mode == "Describe it":
+        text = st.text_area("In your own words", key="text", height=90,
+                            placeholder="e.g. the dancehall beat with the rapping on it, but not the drums")
+        liked, disliked = parse_preferences(text, available)
+        if text.strip():
+            if liked or disliked:
+                st.caption("I understood — **like:** " + (", ".join(LABELS[a] for a in liked) or "nothing")
+                           + " · **avoid:** " + (", ".join(LABELS[a] for a in disliked) or "nothing"))
+            else:
+                st.info("I couldn't find an aspect in that. Try words like beat, rapping, melody, vibe, "
+                        "energy, drums, tempo, sound, or use Pick aspects.")
+    else:
+        liked = st.pills("I like…", available, selection_mode="multi", format_func=LABELS.get, key="likes") or []
+        disliked = st.pills("I don't want…  (optional)", [a for a in available if a not in liked],
+                            selection_mode="multi", format_func=LABELS.get, key="dislikes") or []
+        disliked = [a for a in disliked if a not in liked]
+
+    st.subheader("3. Songs for you")
     if not liked and not disliked:
-        st.info("Select at least one available aspect.")
+        st.info("Choose at least one thing you like about the song above.")
         st.stop()
-    recommender = AspectRecommender(embeddings, liked, disliked, seeds)
+    limit = st.slider("How many songs", 1, 20, 10)
+    recommender = AspectRecommender(embeddings, liked, disliked, [seed])
     for track, feedback in st.session_state.feedback.items():
         recommender.update_feedback(track, feedback)
     ranked = recommender.recommend(limit)
-    display = tracks.reindex(ranked.index).reindex(columns=["title", "artist"]).join(ranked)
-    st.dataframe(display, width="stretch")
-    st.caption("Scores are relative rankings, not probabilities. Seeds and voted songs are excluded.")
     if ranked.empty:
-        st.info("No unseen songs remain. Clear feedback or remove reference songs.")
-    for track in ranked.index:
-        cols = st.columns([6, 1, 1])
-        cols[0].write(label(track))
-        if isinstance(tracks.loc[track].get("preview_url"), str):
-            cols[0].audio(tracks.loc[track]["preview_url"])
-        cols[1].button("Like song", key=f"up_{track}", on_click=vote, args=(track, True))
-        cols[2].button("Dislike song", key=f"down_{track}", on_click=vote, args=(track, False))
+        st.info("No unseen songs remain. Clear feedback.")
+    for track, row in ranked.iterrows():
+        info = tracks.loc[track]
+        art, body, votes = st.columns([1, 6, 2])
+        if isinstance(info.get("artwork"), str):
+            art.image(info["artwork"])
+        body.markdown(f"**{label(track)}**")
+        best = [a for a in row.drop("score").sort_values(ascending=False).index if a in liked][:2]
+        if best:
+            body.caption("Best match on: " + ", ".join(LABELS[a].replace("The ", "") for a in best))
+        if isinstance(info.get("preview_url"), str):
+            body.audio(info["preview_url"])
+        votes.button("👍 More like this", key=f"up_{track}", on_click=vote, args=(track, True))
+        votes.button("👎 Less like this", key=f"down_{track}", on_click=vote, args=(track, False))
+    st.caption(f"{len(st.session_state.feedback)} song votes this session. Thumbs shift the results toward or "
+               "away from those songs. Scores are rankings, not probabilities. Previews are 30 s clips "
+               "from iTunes for personal use.")
     if st.session_state.feedback:
-        with st.expander("Review or replace previous votes"):
+        if st.button("Clear song feedback"):
+            st.session_state.feedback = {}
+            st.rerun()
+        with st.expander("Review or replace votes"):
             for track, feedback in list(st.session_state.feedback.items()):
                 st.write(f"{label(track)}: {'liked' if feedback else 'disliked'}")
                 st.button("Change to dislike" if feedback else "Change to like", key=f"replace_{track}",
