@@ -15,16 +15,25 @@ LABELS = {
     "timbre": "The overall sound / production",
     "energy": "The energy",
     "mood": "The vibe / mood",
+    # Knowledge aspects (need Genius data): what people have written and credited.
+    "sample": "The sample",
+    "backing": "The background vocals",
+    "people": "The producers / writers",
+    "style": "The genre / style",
 }
 
 KEYWORDS = {
     "rhythm": r"beat|groove|rhythm|dancehall|afrobeat|bounce|swing|dance|danceable|syncopat|riddim|bassline|flow of the beat",
     "tempo": r"dancehall|tempo|bpm|fast|slow|speed|pace|uptempo|mid-?tempo|laid.?back",
     "drums": r"beat|drum|808|kick|snare|hi-?hat|percussion|trap beat|bass|knock",
-    "vocals": r"rap|rapping|flow|vocal|voice|singing|sing|lyric|bars|verse|delivery|hook|autotune|auto-tune|harmon|singer",
-    "melody": r"melod|chord|keys|piano|guitar|sample|tune|catchy|hook|harmony|notes",
+    "vocals": r"rap|rapping|flow|vocal|voice|singing|sing|lyric|bars|verse|delivery|hook|autotune|auto-tune|singer",
+    "melody": r"melod|chord|keys|piano|guitar|tune|catchy|hook|harmony|notes",
     "timbre": r"sound|production|texture|tone|timbre|mix|produced|polished|lo-?fi|gritty|clean|warm|dark sound",
     "energy": r"energy|energetic|hype|intense|aggressive|loud|hard|lit|pump|mellow|calm|chill|soft|quiet",
+    "sample": r"sampl|interpolat|flip|chop|chipmunk",
+    "backing": r"background|backing|harmon|choir|choral|gospel|ad-?libs?|chant",
+    "people": r"producer|produced by|writer|written|credits|same people|collab",
+    "style": r"genre|style|afrobeats?|dancehall|r&b|rnb|trap|drill|grime|soul|funk|pop|uk|latin|reggae|house|amapiano",
     "mood": r"vibe|mood|feel|feeling|atmosphere|emotion|dark|moody|sad|happy|bright|summer|romantic|dreamy|ambient|smooth",
 }
 
@@ -32,8 +41,17 @@ KEYWORDS = {
 NEGATIONS = r"\bbut not\b|\bnot the\b|\bwithout\b|\bdon'?t like\b|\bdo not like\b|\bdon'?t want\b|\bavoid\b|\bhate\b|\bless\b|\bno more\b|\bnot a fan of\b|\bsick of\b"
 
 
+BACKGROUND_PHRASE = r"(?:background|backing)\s+(?:vocals?|singers?|harmon\w*)|harmon\w*"
+
+
 def aspects_in(text, available=None):
-    found = [a for a, pattern in KEYWORDS.items() if re.search(rf"\b(?:{pattern})", text.lower())]
+    lowered = text.lower()
+    found = []
+    for aspect, pattern in KEYWORDS.items():
+        # "background vocals" is its own aspect, not the lead rapping/vocals.
+        scope = re.sub(BACKGROUND_PHRASE, " ", lowered) if aspect == "vocals" else lowered
+        if re.search(rf"\b(?:{pattern})", scope):
+            found.append(aspect)
     if available is not None:
         found = [a for a in found if a in available]
     return found

@@ -8,7 +8,7 @@ import streamlit as st
 
 from src.embeddings import AspectEmbeddings
 from src.intent import LABELS, parse_preferences
-from src.recommender import AspectRecommender
+from src.knowledge import KNOWLEDGE_ASPECTS, Knowledge, hybrid_recommend, load_records
 
 DEFAULT_SONG = "One Dance"
 
@@ -18,6 +18,15 @@ def load_catalog(path, modified):
     frame = pd.read_csv(path, index_col=0)
     model = AspectEmbeddings().fit(frame)
     return frame, model.transform(frame)
+
+
+@st.cache_resource
+def load_knowledge(path, tracks_modified):
+    folder = Path(path).parent / "genius"
+    if not folder.is_dir():
+        return None
+    records = load_records(folder)
+    return Knowledge(pd.read_csv(path, index_col=0), records) if records else None
 
 
 def vote(track, liked):
@@ -33,10 +42,11 @@ def main():
     except (OSError, ValueError) as exc:
         st.error(f"Cannot load catalog: {exc}. Run python -m src.catalog then python -m src.features first.")
         st.stop()
+    knowledge = load_knowledge(str(path), path.stat().st_mtime_ns)
     source = ", ".join(sorted(tracks.source.dropna().unique())) if "source" in tracks else "unknown"
     if source != "itunes_preview":
         st.warning("Synthetic or unknown source: these features do not demonstrate real musical quality.")
-    available = [a for a in LABELS if a in embeddings]
+    available = [a for a in LABELS if a in embeddings or (knowledge is not None and a in KNOWLEDGE_ASPECTS)]
 
     def label(track):
         row = tracks.loc[track]
@@ -61,7 +71,7 @@ def main():
     st.subheader("2. What do you like about it?")
     mode = st.segmented_control("How do you want to tell me?", ["Pick aspects", "Describe it"],
                                 default="Pick aspects", key="mode")
-    liked, disliked = [], []
+    liked, disliked, text = [], [], ""
     if mode == "Describe it":
         text = st.text_area("In your own words", key="text", height=90,
                             placeholder="e.g. the dancehall beat with the rapping on it, but not the drums")
@@ -69,7 +79,9 @@ def main():
         if text.strip():
             if liked or disliked:
                 st.caption("I understood — **like:** " + (", ".join(LABELS[a] for a in liked) or "nothing")
-                           + " · **avoid:** " + (", ".join(LABELS[a] for a in disliked) or "nothing"))
+                           + " · **avoid:** " + (", ".join(LABELS[a] for a in disliked) or "nothing")
+                           + (" · I'll also match your exact words against song descriptions."
+                              if knowledge is not None else ""))
             else:
                 st.info("I couldn't find an aspect in that. Try words like beat, rapping, melody, vibe, "
                         "energy, drums, tempo, sound, or use Pick aspects.")
@@ -83,11 +95,12 @@ def main():
     if not liked and not disliked:
         st.info("Choose at least one thing you like about the song above.")
         st.stop()
+    if knowledge is None and any(a in KNOWLEDGE_ASPECTS for a in liked + disliked):
+        st.info("Sample, producer, background-vocal and genre matching need song data: run python -m src.genius.")
+        st.stop()
     limit = st.slider("How many songs", 1, 20, 10)
-    recommender = AspectRecommender(embeddings, liked, disliked, [seed])
-    for track, feedback in st.session_state.feedback.items():
-        recommender.update_feedback(track, feedback)
-    ranked = recommender.recommend(limit)
+    ranked = hybrid_recommend(embeddings, knowledge, seed, liked, disliked, st.session_state.feedback,
+                              text if mode == "Describe it" and knowledge is not None else "", limit)
     if ranked.empty:
         st.info("No unseen songs remain. Clear feedback.")
     for track, row in ranked.iterrows():
@@ -96,9 +109,13 @@ def main():
         if isinstance(info.get("artwork"), str):
             art.image(info["artwork"])
         body.markdown(f"**{label(track)}**")
-        best = [a for a in row.drop("score").sort_values(ascending=False).index if a in liked][:2]
+        notes = knowledge.explain(track, seed, liked) if knowledge is not None else []
+        best = [a for a in row.drop("score").dropna().sort_values(ascending=False).index
+                if a in liked and a not in KNOWLEDGE_ASPECTS][:2]
         if best:
-            body.caption("Best match on: " + ", ".join(LABELS[a].replace("The ", "") for a in best))
+            notes.append("sounds like your song on: " + ", ".join(LABELS[a].replace("The ", "") for a in best))
+        if notes:
+            body.caption(" · ".join(notes))
         if isinstance(info.get("preview_url"), str):
             body.audio(info["preview_url"])
         votes.button("👍 More like this", key=f"up_{track}", on_click=vote, args=(track, True))
