@@ -1,6 +1,6 @@
 # Facets 2.0: recommend by the part you love
 
-**Live demo:** _link added on deploy_
+**Live demo:** https://ahmadsmadi44.github.io/facets/
 
 Most recommenders hand you "songs like this song". Facets lets you say *which part* of the song you
 love while it plays: the drums, the sample, the vocals, the 808s, the background vocals, the
@@ -92,6 +92,9 @@ python -m src.export_web                       # writes web/data/
 python -m http.server 8790 --directory web     # open http://localhost:8790
 python -m pytest -q; node --test tests/web_model.test.mjs
 ```
+
+Deploy: GitHub Pages serves the `gh-pages` branch, which is the `web/` folder. After re-exporting,
+run `git subtree split --prefix web -b gh-pages && git push -f origin gh-pages`.
 
 The v1 pipeline (librosa features, `src/features.py`, `src/embeddings.py`, `src/knowledge.py`) is
 kept for the diagnosis comparison.
