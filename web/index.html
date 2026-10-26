@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050806">
+  <meta name="description" content="Facets: a social music concept where you tell it which part of a song you love (the drums, the sample, the vocals) and get a For You list built from that part.">
+  <title>Facets 2.0</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%231ed760'/%3E%3Crect x='8' y='14' width='3.5' height='9' rx='1.75' fill='%23000'/%3E%3Crect x='14.25' y='9' width='3.5' height='14' rx='1.75' fill='%23000'/%3E%3Crect x='20.5' y='12' width='3.5' height='11' rx='1.75' fill='%23000'/%3E%3C/svg%3E">
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+
+  <!-- Intro: the reel's tagline sequence -->
+  <section id="intro" class="intro" aria-label="Intro">
+    <p class="intro-line" data-step="0">See what your <span class="intro-avatars" id="intro-avatars"></span> are <em>playing.</em></p>
+    <p class="intro-line" data-step="1">And <em>react</em> to it</p>
+    <p class="intro-line" data-step="2">In real-time</p>
+    <p class="intro-line" data-step="3">Down to the <em>drums</em>, the <em>sample</em>, the <em>vocals</em></p>
+    <div class="intro-logo" data-step="4"><span class="logo-mark"></span><span class="logo-word">Facets</span><sup>2.0</sup></div>
+    <button class="intro-skip" id="intro-skip" type="button">Skip</button>
+  </section>
+
+  <div class="app" id="app">
+    <header class="topbar">
+      <button class="me" id="me" type="button" aria-label="Replay intro">A</button>
+      <nav class="chips" role="tablist" aria-label="Sections">
+        <button class="chip" role="tab" data-tab="all" aria-selected="true">All</button>
+        <button class="chip" role="tab" data-tab="friends" aria-selected="false">Friends</button>
+        <button class="chip" role="tab" data-tab="foryou" aria-selected="false">For You</button>
+      </nav>
+      <button class="icon-btn" id="open-search" type="button" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+    </header>
+
+    <main id="views">
+      <section class="view" data-view="all" id="view-all"></section>
+      <section class="view" data-view="friends" id="view-friends" hidden></section>
+      <section class="view" data-view="foryou" id="view-foryou" hidden></section>
+      <section class="view" data-view="rate" id="view-rate" hidden></section>
+    </main>
+
+    <div class="mini" id="mini" hidden>
+      <button class="mini-body" id="mini-open" type="button" aria-label="Open now playing">
+        <img class="mini-art" id="mini-art" alt="">
+        <span class="mini-text"><b id="mini-title"></b><span id="mini-artist"></span></span>
+      </button>
+      <button class="mini-play" id="mini-play" type="button" aria-label="Play"></button>
+      <div class="mini-progress"><i id="mini-progress"></i></div>
+    </div>
+
+    <nav class="tabbar" aria-label="Main">
+      <button data-nav="all" class="on"><svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg>Home</button>
+      <button data-nav="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</button>
+      <button data-nav="foryou"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.6L20 9.3l-4.4 3.9L17 19l-5-3-5 3 1.4-5.8L4 9.3l5.8-.7z"/></svg>For You</button>
+      <button data-nav="rate"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4.5 18.5A1.6 1.6 0 0 0 6 21h12a1.6 1.6 0 0 0 1.5-2.5L14 9V3"/><path d="M7.5 15h9"/></svg>Rate</button>
+    </nav>
+  </div>
+
+  <!-- Now playing sheet -->
+  <section class="sheet" id="sheet" aria-hidden="true" aria-label="Now playing">
+    <div class="sheet-bg" id="sheet-bg"></div>
+    <div class="sheet-inner">
+      <button class="sheet-close" id="sheet-close" type="button" aria-label="Close"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></button>
+      <img class="np-art" id="np-art" alt="">
+      <div class="np-head">
+        <div><h2 id="np-title"></h2><p id="np-artist"></p></div>
+        <button class="heart" id="np-like" type="button" aria-label="Add to Liked Songs"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg></button>
+      </div>
+      <div class="np-progress"><i id="np-progress"></i></div>
+      <div class="np-controls">
+        <span id="np-time">0:00</span>
+        <button class="np-play" id="np-play" type="button" aria-label="Play"></button>
+        <button class="icon-btn" id="np-next" type="button" aria-label="Next recommendation"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7zM18 5v14"/></svg></button>
+      </div>
+      <div class="np-tags" id="np-tags"></div>
+
+      <div class="hits">
+        <h3>What hits for you?</h3>
+        <p class="hint">Tap once to keep it, twice to avoid it.</p>
+        <div class="aspect-chips" id="np-aspects"></div>
+        <label class="say"><input id="np-text" type="text" placeholder="Or say it: the angelic sample and the drums…" autocomplete="off"></label>
+        <p class="heard" id="np-heard"></p>
+        <button class="cta" id="np-foryou" type="button">Show my For You</button>
+      </div>
+      <div class="credits" id="np-credits"></div>
+    </div>
+  </section>
+
+  <!-- Search -->
+  <section class="search" id="search" aria-hidden="true" aria-label="Search">
+    <div class="search-bar">
+      <input id="search-input" type="search" placeholder="Songs or artists" autocomplete="off">
+      <button class="link" id="search-close" type="button">Cancel</button>
+    </div>
+    <div class="search-results" id="search-results"></div>
+  </section>
+
+  <audio id="audio" preload="none"></audio>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

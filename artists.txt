@@ -1,5 +1,5 @@
-# One artist per line. Edit freely, then run: python -m src.catalog
-Drake
+# One artist per line, optionally 'Artist | tracks'. Edit, then run: python -m src.catalog
+Drake | 100
 Travis Scott
 Kanye West
 Kendrick Lamar
@@ -11,8 +11,6 @@ Lil Uzi Vert
 Playboi Carti
 A$AP Rocky
 Tyler, The Creator
-Jay-Z
-Nas
 Eminem
 Lil Wayne
 Nicki Minaj
@@ -45,3 +43,55 @@ Brent Faiyaz
 Usher
 Chris Brown
 Beyoncé
+The Notorious B.I.G.
+2Pac
+Nas | 40
+Jay-Z | 40
+Mobb Deep
+Wu-Tang Clan
+A Tribe Called Quest
+Common
+Lauryn Hill
+Pete Rock & C.L. Smooth
+Lupe Fiasco
+Mac Miller
+Joey Bada$$
+Rick Ross
+Meek Mill
+Pusha T
+Freddie Gibbs
+Westside Gunn
+Little Simz
+Dave
+Central Cee
+Anderson .Paak
+Smino
+Earth, Wind & Fire
+Marvin Gaye
+Stevie Wonder
+Al Green
+Curtis Mayfield
+The Isley Brothers
+Bill Withers
+Donny Hathaway
+Aretha Franklin
+The Temptations
+Smokey Robinson
+Michael Jackson
+Luther Vandross
+Sade
+Mary J. Blige
+Erykah Badu
+D'Angelo
+Alicia Keys
+Jill Scott
+Giveon
+6LACK
+Jhené Aiko
+H.E.R.
+Lucky Daye
+Kehlani
+Tems
+Burna Boy
+Wizkid
+Rema

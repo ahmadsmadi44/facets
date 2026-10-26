@@ -88,14 +88,19 @@ def build_features(data_dir=DATA_DIR, jobs=-1):
     data_dir = Path(data_dir)
     catalog = pd.read_csv(data_dir / "catalog.csv", index_col=0)
     paths = {i: data_dir / "previews" / f"{i}.m4a" for i in catalog.index}
-    todo = [(i, p) for i, p in paths.items() if p.exists()]
-    print(f"Extracting {len(todo)} clips", flush=True)
+    output = data_dir / "hiphop_features.csv"
+    keep = ["title", "artist", "genre", "split", "source", "preview_url", "artwork"]
+    # Reuse rows already extracted in a previous run; only new clips are analysed.
+    cached = pd.read_csv(output, index_col=0).drop(columns=keep, errors="ignore") if output.exists() else None
+    todo = [(i, p) for i, p in paths.items() if p.exists() and (cached is None or i not in cached.index)]
+    print(f"Extracting {len(todo)} clips ({0 if cached is None else len(cached)} cached)", flush=True)
     results = Parallel(n_jobs=jobs, verbose=5)(delayed(safe_extract)(i, p) for i, p in todo)
     features = pd.DataFrame({i: row for i, row in results if row is not None}).T
+    if cached is not None:
+        features = pd.concat([cached, features])
     features.index.name = "track_id"
-    keep = ["title", "artist", "genre", "split", "source", "preview_url", "artwork"]
     table = catalog[keep].join(features, how="inner")
-    table.to_csv(data_dir / "hiphop_features.csv")
+    table.to_csv(output)
     print(f"Wrote {len(table)} tracks x {features.shape[1]} features")
     return table
 

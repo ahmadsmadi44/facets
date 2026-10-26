@@ -4,5 +4,8 @@ requests>=2.32,<3
 scikit-learn>=1.6,<2
 joblib>=1.4,<2
 pytest>=8,<10
-streamlit>=1.50,<2
 librosa>=0.10,<2
+demucs>=4.0
+transformers==4.46.3  # 5.x ships a broken CLAP; see src/stems.py
+torch>=2.1
+torchaudio>=2.1
