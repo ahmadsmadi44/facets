@@ -20,6 +20,8 @@ export const ASPECTS = {
 const STEMS = ["mix", "drums", "bass", "other", "vocals"];
 // Weight of whole-song similarity when aspects are chosen; the aspect terms together weigh 1.
 export const COHERENCE = 0.8;
+// Score cost of each extra taste-mix pick that comes from the same one of your songs.
+const SOURCE_PENALTY = 0.5;
 const KEYWORDS = {
   drums: /\b(drum|drums|beat|hi-?hats?|snare|kick|percussion|boom ?bap|knock|bounce|riddim|groove)/,
   bass: /\b(808s?|bass|bassline|sub)/,
@@ -173,8 +175,8 @@ export class Model {
     return values.map(v => (v - mean) / std);
   }
 
-  recommend({ seed, liked = [], disliked = [], text = "", feedback = {}, limit = 12, mode = "aspect",
-              diversity = true }) {
+  /** Score every track for one request: a sum of z-scored parts, plus what's needed to explain it. */
+  score({ seed, liked = [], disliked = [], text = "", feedback = {}, mode = "aspect" }) {
     const s = this.index.get(seed);
     const seen = new Set([s, ...Object.keys(feedback).map(id => this.index.get(+id)).filter(i => i !== undefined),
                           ...(this.keyOwners.get(this.tracks[s].key) || [])]);
@@ -215,15 +217,57 @@ export class Model {
       }
       if (parsed.descriptors.length) add("_words", this.descriptorScores(parsed.descriptors), 1 / asked);
     }
-    const order = Array.from({ length: this.n }, (_, i) => i).filter(i => !seen.has(i))
-      .sort((a, b) => total[b] - total[a]);
-    const picked = diversity ? this.mmr(order, total, limit) : order.slice(0, limit);
-    return picked.map(i => ({ id: this.tracks[i].id, score: total[i], why: this.explain(i, s, liked, parts, parsed) }));
+    return { s, seen, total, parts, liked, parsed };
   }
 
-  /** Maximal marginal relevance: penalise near-duplicates and cap two songs per artist. */
-  mmr(order, total, limit, lambda = 0.6) {
-    const pool = order.slice(0, 200), picked = [], perArtist = new Map(), titles = new Set();
+  rank(total, seen, limit, diversity, source = null) {
+    const order = Array.from({ length: this.n }, (_, i) => i).filter(i => !seen.has(i))
+      .sort((a, b) => total[b] - total[a]);
+    return diversity ? this.mmr(order, total, limit, 0.6, source) : order.slice(0, limit);
+  }
+
+  /** Songs for one song and what you said about it. */
+  recommend({ limit = 12, diversity = true, ...request }) {
+    const r = this.score(request);
+    return this.rank(r.total, r.seen, limit, diversity)
+      .map(i => ({ id: this.tracks[i].id, score: r.total[i], why: this.explain(i, r.s, r.liked, r.parts, r.parsed) }));
+  }
+
+  /**
+   * Your taste across songs. Each song you described is one request, scored as in recommend()
+   * and re-standardised so every song counts the same. A candidate's score is the mean over your
+   * songs plus half the best single match: it wins by matching one of your songs strongly and
+   * gets a bonus for matching several. `because` is the song that match came from.
+   */
+  profile(entries, { feedback = {}, limit = 12, diversity = true } = {}) {
+    if (!entries.length) return [];
+    const runs = entries.map(e => ({ e, r: this.score({ ...e, feedback }) }));
+    const seen = new Set(runs.flatMap(({ r }) => [...r.seen]));
+    const mean = new Float32Array(this.n), best = new Float32Array(this.n).fill(-Infinity), from = new Int32Array(this.n);
+    let weights = 0;
+    runs.forEach(({ e, r }, k) => {
+      const w = e.weight ?? 1, z = Model.z(r.total, seen);
+      weights += w;
+      for (let i = 0; i < this.n; i++) {
+        const v = w * z[i];
+        mean[i] += v;
+        if (v > best[i]) { best[i] = v; from[i] = k; }
+      }
+    });
+    const total = mean.map((m, i) => m / weights + 0.5 * best[i]);
+    return this.rank(total, seen, limit, diversity, from).map(i => {
+      const { e, r } = runs[from[i]];
+      return { id: this.tracks[i].id, score: total[i], because: e.seed, why: this.explain(i, r.s, r.liked, r.parts, r.parsed) };
+    });
+  }
+
+  /**
+   * Maximal marginal relevance: penalise near-duplicates and cap two songs per artist. With a
+   * `source` per track (which of your songs it matched best), each extra pick from the same
+   * source costs a little, so one song can't take over a taste mix.
+   */
+  mmr(order, total, limit, lambda = 0.6, source = null) {
+    const pool = order.slice(0, 200), picked = [], perArtist = new Map(), titles = new Set(), perSource = new Map();
     while (picked.length < limit && pool.length) {
       let best = -1, bestScore = -Infinity;
       for (let p = 0; p < pool.length; p++) {
@@ -235,12 +279,14 @@ export class Model {
           for (let k = 0; k < this.dims; k++) d += a[k] * b[k];
           redundancy = Math.max(redundancy, d);
         }
-        const score = total[i] - lambda * Math.max(0, redundancy - 0.85) * 10;
+        let score = total[i] - lambda * Math.max(0, redundancy - 0.85) * 10;
+        if (source) score -= SOURCE_PENALTY * (perSource.get(source[i]) || 0);
         if (score > bestScore) { bestScore = score; best = p; }
       }
       if (best < 0) break;
       const [i] = pool.splice(best, 1);
       picked.push(i);
+      if (source) perSource.set(source[i], (perSource.get(source[i]) || 0) + 1);
       titles.add(this.tracks[i].key);
       perArtist.set(this.tracks[i].a0, (perArtist.get(this.tracks[i].a0) || 0) + 1);
     }

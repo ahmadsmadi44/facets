@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#050806">
-  <meta name="description" content="Facets: a social music concept where you tell it which part of a song you love (the drums, the sample, the vocals) and get a For You list built from that part.">
-  <title>Facets 2.0</title>
+  <meta name="description" content="Facets: tell it which part of each song you love (the drums, the sample, the vocals) and it builds a For You list of songs that really sound like that.">
+  <title>Facets</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -15,13 +15,13 @@
 <body>
   <div class="ambient" aria-hidden="true"></div>
 
-  <!-- Intro: the reel's tagline sequence -->
+  <!-- Intro: what the app does, one line at a time -->
   <section id="intro" class="intro" aria-label="Intro">
-    <p class="intro-line" data-step="0">See what your <span class="intro-avatars" id="intro-avatars"></span> are <em>playing.</em></p>
-    <p class="intro-line" data-step="1">And <em>react</em> to it</p>
-    <p class="intro-line" data-step="2">In real-time</p>
-    <p class="intro-line" data-step="3">Down to the <em>drums</em>, the <em>sample</em>, the <em>vocals</em></p>
-    <div class="intro-logo" data-step="4"><span class="logo-mark"></span><span class="logo-word">Facets</span><sup>2.0</sup></div>
+    <p class="intro-line" data-step="0">Play a song you <em>love.</em></p>
+    <p class="intro-line" data-step="1">Tell it what <em>hits</em>: the <em>drums</em>, the <em>sample</em>, the <em>vocals</em></p>
+    <p class="intro-line" data-step="2">Do it song by song. It learns your <em>taste.</em></p>
+    <p class="intro-line" data-step="3">And finds songs that <em>really</em> sound like that</p>
+    <div class="intro-logo" data-step="4"><span class="logo-mark"></span><span class="logo-word">Facets</span></div>
     <button class="intro-skip" id="intro-skip" type="button">Skip</button>
   </section>
 
@@ -30,16 +30,16 @@
       <button class="me" id="me" type="button" aria-label="Replay intro">A</button>
       <nav class="chips" role="tablist" aria-label="Sections">
         <button class="chip" role="tab" data-tab="all" aria-selected="true">All</button>
-        <button class="chip" role="tab" data-tab="friends" aria-selected="false">Friends</button>
         <button class="chip" role="tab" data-tab="foryou" aria-selected="false">For You</button>
+        <button class="chip" role="tab" data-tab="taste" aria-selected="false">Your taste</button>
       </nav>
       <button class="icon-btn" id="open-search" type="button" aria-label="Search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
     </header>
 
     <main id="views">
       <section class="view" data-view="all" id="view-all"></section>
-      <section class="view" data-view="friends" id="view-friends" hidden></section>
       <section class="view" data-view="foryou" id="view-foryou" hidden></section>
+      <section class="view" data-view="taste" id="view-taste" hidden></section>
       <section class="view" data-view="rate" id="view-rate" hidden></section>
     </main>
 
@@ -56,6 +56,7 @@
       <button data-nav="all" class="on"><svg viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></svg>Home</button>
       <button data-nav="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</button>
       <button data-nav="foryou"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.6L20 9.3l-4.4 3.9L17 19l-5-3-5 3 1.4-5.8L4 9.3l5.8-.7z"/></svg>For You</button>
+      <button data-nav="taste"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Taste</button>
       <button data-nav="rate"><svg viewBox="0 0 24 24"><path d="M9 3h6M10 3v6L4.5 18.5A1.6 1.6 0 0 0 6 21h12a1.6 1.6 0 0 0 1.5-2.5L14 9V3"/><path d="M7.5 15h9"/></svg>Rate</button>
     </nav>
   </div>
@@ -73,18 +74,21 @@
       <div class="np-progress"><i id="np-progress"></i></div>
       <div class="np-controls">
         <span id="np-time">0:00</span>
+        <button class="icon-btn" id="np-prev" type="button" aria-label="Previous song"><svg viewBox="0 0 24 24"><path d="M18 5l-9 7 9 7zM6 5v14"/></svg></button>
         <button class="np-play" id="np-play" type="button" aria-label="Play"></button>
-        <button class="icon-btn" id="np-next" type="button" aria-label="Next recommendation"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7zM18 5v14"/></svg></button>
+        <button class="icon-btn" id="np-next" type="button" aria-label="Next song"><svg viewBox="0 0 24 24"><path d="M6 5l9 7-9 7zM18 5v14"/></svg></button>
+        <span></span>
       </div>
       <div class="np-tags" id="np-tags"></div>
 
       <div class="hits">
-        <h3>What hits for you?</h3>
-        <p class="hint">Tap once to keep it, twice to avoid it.</p>
+        <h3>What hits for you in this song?</h3>
+        <p class="hint">Tap once if you love it, twice if you don't. Saved for this song only.</p>
         <div class="aspect-chips" id="np-aspects"></div>
         <label class="say"><input id="np-text" type="text" placeholder="Or say it: the angelic sample and the drums…" autocomplete="off"></label>
         <p class="heard" id="np-heard"></p>
-        <button class="cta" id="np-foryou" type="button">Show my For You</button>
+        <div id="np-matches"></div>
+        <button class="cta" id="np-foryou" type="button">See my For You</button>
       </div>
       <div class="credits" id="np-credits"></div>
     </div>
