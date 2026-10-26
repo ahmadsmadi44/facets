@@ -1,17 +1,28 @@
-# Facets 2.0: recommend by the part you love
+# Facets: recommend by the part you love
 
 **Live demo:** https://ahmadsmadi44.github.io/facets/
 
-Most recommenders hand you "songs like this song". Facets lets you say *which part* of the song you
-love while it plays: the drums, the sample, the vocals, the 808s, the background vocals, the
-producers, or plain words like "the angelic choir sample". Your For You list is built from that part.
-It sits inside a social, real-time music UI inspired by the "Spotify 2.0" concept reel by
-@xzecreative. You see what friends are playing, react, and comment.
+Most recommenders hand you "songs like this song". Facets lets you say *which part* of each song
+you love while it plays: the drums, the sample, the vocals, the 808s, the background vocals, the
+producers, or plain words like "the angelic choir sample". Do that for a few songs and it builds
+your taste from those parts, then recommends songs that really sound like them. The look is
+Spotify-style, after the "Spotify 2.0" concept reel by @xzecreative.
 
-![Home, player with aspect controls, For You, friends](docs/screens.png)
+![Home, player with per-song picks, For You, your taste](docs/screens.png)
 
 > Concept project. Not affiliated with Spotify. Audio is 30-second previews streamed from Apple
-> (one track from Deezer). Friends in the social feed are simulated.
+> (one track from Deezer).
+
+## Using it
+
+1. Play a song and open the player. Under **What hits for you in this song?** tap a part once if
+   you love it (♥) and twice if you don't (✕), or type it. The picks belong to that song only, and
+   the top matches for them appear right below.
+2. Skip with ⏭ and go back with ⏮. Each song keeps its own picks, so a new song starts blank.
+3. **For You** and **Made for you** mix every song you've described. Each pick says which of your
+   songs it came from ("Because you like the sample in Champagne Poetry"). 👍/👎 nudge the list.
+4. **Your taste** lists what you've said about each song. Tap a song to change its picks or ✕ to
+   drop it. Hearted songs you didn't describe count as "the whole song" at half weight.
 
 ## How it works
 
@@ -34,12 +45,18 @@ Genius API ──► producers, writers, samples, background-vocal credits ─�
    "sliding 808", "angelic vocals"), each scored by CLAP against the stem it describes. Scores are
    z-normalised across the catalog, which removes CLAP's bias toward generic prompts. They power
    free-text requests and each song's tags.
-5. **Recommender** (`web/js/model.js`, runs in the browser):
+5. **Recommender for one song** (`web/js/model.js`, runs in the browser):
    `score = 0.8·z(whole-song similarity) + mean over chosen aspects of ±z(aspect score) + descriptor matches`.
    Aspect scores combine stem similarity with Genius knowledge (a shared sample source, credited
    background vocals, shared producers). Thumbs up/down update a Rocchio query (+0.75 liked,
    −0.25 disliked). The list is then re-ranked with MMR, at most two songs per artist and one
    version per title.
+6. **Taste profile** (`Model.profile`): each described song is one request, scored as above and
+   z-normalised so every song counts the same. A candidate's taste score is
+   `mean over your songs + 0.5 · best single match`, so it wins by strongly matching one of your
+   songs and gets a bonus for matching several. During MMR each extra pick traced to the same one
+   of your songs costs 0.5, so one song can't take over the mix (with three described songs the
+   top 15 split 6 / 5 / 4).
 
 ## Results
 

@@ -56,6 +56,23 @@ test("song feedback moves results", () => {
   assert.ok(!after.some(r => r.id === before[0].id));
 });
 
+test("taste profile of one song ranks like that song alone", () => {
+  const one = model.recommend({ seed, liked: ["sample"], limit: 10 }).map(r => r.id);
+  const prof = model.profile([{ seed, liked: ["sample"], disliked: [], text: "" }], { limit: 10 }).map(r => r.id);
+  assert.deepEqual(prof, one);
+});
+
+test("taste profile mixes songs, excludes them and says which one each pick came from", () => {
+  const other = (byTitle("I Got A Story") || model.tracks[1]).id;
+  const entries = [{ seed, liked: ["sample", "backing"], disliked: [], text: "" },
+                   { seed: other, liked: ["drums"], disliked: [], text: "" }];
+  const recs = model.profile(entries, { limit: 12 });
+  assert.equal(recs.length, 12);
+  assert.ok(!recs.some(r => r.id === seed || r.id === other));
+  const from = new Set(recs.map(r => r.because));
+  assert.ok(from.has(seed) && from.has(other), "both songs should contribute");
+});
+
 test("text parsing separates background vocals, negation and descriptors", () => {
   const p = model.parse("the angelic sample and background vocals, but not the drums");
   assert.deepEqual(p.liked.sort(), ["backing", "sample"]);

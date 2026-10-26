@@ -1,5 +1,4 @@
 import { Model, ASPECTS } from "./model.js";
-import { Social, FRIENDS, avatar, esc, ago } from "./social.js";
 
 const SEED_TITLES = [
   ["Champagne Poetry", "Drake"], ["8am in Charlotte", "Drake"], ["Stories About My Brother", "Drake"],
@@ -11,25 +10,36 @@ const RATE_TARGET = 20;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const ICON = {
   play: '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg>',
   pause: '<svg viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1"/><rect x="13.5" y="5" width="4" height="14" rx="1"/></svg>',
-  chev: '<svg class="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
-  send: '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
   up: '<svg viewBox="0 0 24 24"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 0 1 2 2v4h5.5a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 17.3 20H7"/></svg>',
   down: '<svg viewBox="0 0 24 24"><path d="M17 13V4h3v9zM17 13l-4 8a2 2 0 0 1-2-2v-4H5.5a2 2 0 0 1-2-2.3l1.2-7A2 2 0 0 1 6.7 4H17"/></svg>',
   heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
-  bookmark: '<svg viewBox="0 0 24 24"><path d="M7 3h10a1 1 0 0 1 1 1v17l-6-4-6 4V4a1 1 0 0 1 1-1z"/></svg>',
+  sliders: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>',
 };
 
 // ---------- persistent per-browser state ----------
+// songs: { [trackId]: { liked: [aspect], disliked: [aspect], text, at } }, what you said about each song.
 const store = {
-  key: "facets.v1",
+  key: "facets.v2",
   load() {
-    let data = {};
-    try { data = JSON.parse(localStorage.getItem(this.key)) || {}; } catch { /* private mode: start fresh */ }
-    Object.assign(this, { current: null, liked: [], aspects: {}, text: "", feedback: {}, reactions: {}, comments: {},
-                          tests: [], introSeen: false }, data);
+    let data = {}, old = null;
+    try {
+      data = JSON.parse(localStorage.getItem(this.key)) || {};
+      if (!Object.keys(data).length) old = JSON.parse(localStorage.getItem("facets.v1"));
+    } catch { /* private mode: start fresh */ }
+    Object.assign(this, { current: null, liked: [], songs: {}, feedback: {}, tests: [], introSeen: false }, data);
+    if (old) {  // v1 kept one global set of aspects; give it to the song it was set on
+      Object.assign(this, { current: old.current ?? null, liked: old.liked || [], feedback: old.feedback || {}, tests: old.tests || [] });
+      const asp = Object.entries(old.aspects || {});
+      if (old.current != null && (asp.length || old.text)) {
+        this.songs[old.current] = { liked: asp.filter(([, v]) => v === "like").map(([a]) => a),
+          disliked: asp.filter(([, v]) => v === "dislike").map(([a]) => a), text: old.text || "", at: Date.now() };
+      }
+    }
     return this;
   },
   save() {
@@ -38,9 +48,10 @@ const store = {
   },
 }.load();
 
-let model, social, seeds = [], test = null;
+let model, seeds = [], test = null;
 const audio = $("#audio");
-const ui = { tab: "all", openFriends: new Set() };
+const ui = { tab: "all" };
+const trail = { back: [], fwd: [] };  // this visit's playback history, for the back and next buttons
 
 // ---------- helpers ----------
 function toast(msg) {
@@ -52,6 +63,7 @@ function toast(msg) {
 }
 const art = (t, size = 300) => (t.art || "").replace("300x300bb", `${size}x${size}bb`);
 const firstArtist = (a) => a.split(" & ")[0].split(",")[0];
+const short = (title) => title.split(" (")[0].split(" [")[0];
 function jsonp(url) {
   return new Promise((resolve, reject) => {
     const cb = `dz${Math.random().toString(36).slice(2)}`, s = document.createElement("script");
@@ -61,19 +73,56 @@ function jsonp(url) {
     document.head.append(s);
   });
 }
-function liked() { return Object.entries(store.aspects).filter(([, v]) => v === "like").map(([a]) => a); }
-function disliked() { return Object.entries(store.aspects).filter(([, v]) => v === "dislike").map(([a]) => a); }
 function seedId() { return store.current ?? seeds[0]; }
-function recs(opts = {}) {
-  return model.recommend({ seed: seedId(), liked: liked(), disliked: disliked(), text: store.text,
-                           feedback: store.feedback, limit: 12, ...opts });
+
+// What you said about one song. Empty when you haven't said anything about it.
+function picks(id = seedId()) { return store.songs[id] || { liked: [], disliked: [], text: "" }; }
+const said = (p) => p.liked.length || p.disliked.length || p.text.trim();
+function setPicks(id, p) {
+  if (said(p)) store.songs[id] = { liked: p.liked, disliked: p.disliked, text: p.text, at: Date.now() };
+  else delete store.songs[id];
+  store.save();
+}
+// Your taste: every song you described, plus hearted songs you didn't describe (as "the whole song").
+function taste() {
+  const described = Object.entries(store.songs).sort((a, b) => b[1].at - a[1].at)
+    .map(([id, p]) => ({ seed: +id, liked: p.liked, disliked: p.disliked, text: p.text, weight: 1 }));
+  const hearted = store.liked.filter(id => !store.songs[id])
+    .map(id => ({ seed: id, liked: [], disliked: [], text: "", weight: 0.5 }));
+  return [...described, ...hearted].filter(e => model.track(e.seed));
+}
+function songRecs(id = seedId(), opts = {}) {
+  return model.recommend({ seed: id, ...picks(id), feedback: store.feedback, limit: 12, ...opts });
+}
+function tasteRecs(opts = {}) {
+  return model.profile(taste(), { feedback: store.feedback, limit: 12, ...opts });
+}
+function describe(p, { max = 4 } = {}) {
+  const parts = [...p.liked.map(a => ASPECTS[a].label.toLowerCase().replace(/^the /, "")),
+                 ...p.disliked.map(a => `not ${ASPECTS[a].label.toLowerCase().replace(/^the /, "")}`)];
+  if (p.text?.trim()) parts.push(`“${p.text.trim()}”`);
+  return parts.slice(0, max).join(", ");
+}
+// "the sample in Champagne Poetry", or "Champagne Poetry" for a hearted song.
+function becauseLabel(id) {
+  const p = picks(id), t = model.track(id);
+  const liked = p.liked.map(a => ASPECTS[a].label.toLowerCase().replace(/^the /, ""));
+  const what = liked.length ? `the ${liked.slice(0, 2).join(" + ")}` : p.text.trim() ? `“${p.text.trim()}”` : "";
+  return what ? `${what} in ${short(t.t)}` : short(t.t);
 }
 
 // ---------- player ----------
-async function play(id, { open = false } = {}) {
+async function play(id, { via = "pick", open = false } = {}) {
   const t = model.track(id);
   if (!t) return;
   const changed = store.current !== id;
+  if (changed && store.current != null) {
+    if (via === "back") trail.fwd.push(store.current);
+    else {
+      trail.back.push(store.current);
+      if (via !== "fwd") trail.fwd = [];
+    }
+  }
   store.current = id;
   store.save();
   let src = t.p;
@@ -92,7 +141,7 @@ function togglePlay() {
 }
 audio.addEventListener("play", renderPlayIcons);
 audio.addEventListener("pause", renderPlayIcons);
-audio.addEventListener("ended", () => { renderPlayIcons(); nextRec(); });
+audio.addEventListener("ended", () => { renderPlayIcons(); next(); });
 audio.addEventListener("timeupdate", () => {
   const p = audio.duration ? audio.currentTime / audio.duration : 0;
   $("#mini-progress").style.transform = `scaleX(${p})`;
@@ -100,9 +149,18 @@ audio.addEventListener("timeupdate", () => {
   const s = Math.floor(audio.currentTime);
   $("#np-time").textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 });
-function nextRec() {
-  const next = recs({ limit: 1 })[0];
-  if (next) play(next.id);
+// Next: forward through history after going back; otherwise the best match you haven't heard yet.
+// It follows this song's picks if you made any, else your whole taste, else plain similarity.
+function next() {
+  if (trail.fwd.length) return play(trail.fwd.pop(), { via: "fwd" });
+  const heard = new Set([...trail.back, seedId()]);
+  const list = said(picks()) || !taste().length ? songRecs(seedId(), { limit: 40 }) : tasteRecs({ limit: 40 });
+  const pick = list.find(r => !heard.has(r.id));
+  if (pick) play(pick.id, { via: "next" });
+}
+function back() {
+  if (trail.back.length) return play(trail.back.pop(), { via: "back" });
+  audio.currentTime = 0;
 }
 function renderPlayIcons() {
   const icon = audio.paused ? ICON.play : ICON.pause;
@@ -122,6 +180,7 @@ function renderPlayer() {
   $("#np-title").textContent = t.t;
   $("#np-artist").textContent = t.a;
   $("#np-like").classList.toggle("on", store.liked.includes(t.id));
+  $("#np-prev").classList.toggle("dim", !trail.back.length);
   $("#np-tags").innerHTML = [t.bpm ? `${Math.round(t.bpm)} bpm` : null, ...(t.tg || [])].filter(Boolean)
     .map(x => `<i>${esc(x)}</i>`).join("");
   const credits = [];
@@ -129,30 +188,33 @@ function renderPlayer() {
   if (t.sd?.length) credits.push(`<b>Samples</b> ${esc(t.sd.slice(0, 3).join(" · "))}`);
   if (t.gu) credits.push(`<a href="${esc(t.gu)}" target="_blank" rel="noopener">Credits on Genius</a>`);
   $("#np-credits").innerHTML = credits.join("<br>");
-  renderAspectChips($("#np-aspects"));
-  $("#np-text").value = store.text;
-  renderHeard($("#np-heard"));
+  $("#np-text").value = picks().text;
+  renderSheetPicks();
   renderPlayIcons();
 }
 
-// ---------- aspect controls (shared by sheet and For You) ----------
-function renderAspectChips(root) {
+// ---------- per-song aspect controls ----------
+function renderAspectChips(root, id = seedId()) {
+  const p = picks(id);
   root.innerHTML = ASPECT_ORDER.map(a => {
-    const state = store.aspects[a] || "none";
+    const state = p.liked.includes(a) ? "like" : p.disliked.includes(a) ? "dislike" : "none";
     const mark = state === "like" ? "♥" : state === "dislike" ? "✕" : "+";
     return `<button class="aspect" data-aspect="${a}" data-state="${state}" type="button" aria-pressed="${state !== "none"}">
       <span class="mark">${mark}</span>${esc(ASPECTS[a].label)}</button>`;
   }).join("");
 }
 function cycleAspect(a) {
-  const next = { none: "like", like: "dislike", dislike: "none" }[store.aspects[a] || "none"];
-  if (next === "none") delete store.aspects[a]; else store.aspects[a] = next;
-  store.save();
-  refreshControls();
+  const id = seedId(), p = picks(id);
+  const state = p.liked.includes(a) ? "like" : p.disliked.includes(a) ? "dislike" : "none";
+  const liked = p.liked.filter(x => x !== a), disliked = p.disliked.filter(x => x !== a);
+  if (state === "none") liked.push(a); else if (state === "like") disliked.push(a);
+  setPicks(id, { liked, disliked, text: p.text });
+  refresh();
 }
 function renderHeard(el) {
-  if (!store.text.trim()) { el.innerHTML = ""; return; }
-  const p = model.parse(store.text);
+  const text = picks().text;
+  if (!text.trim()) { el.innerHTML = ""; return; }
+  const p = model.parse(text);
   const bits = [
     ...p.liked.map(a => `<b>♥ ${esc(ASPECTS[a].label)}</b>`),
     ...p.disliked.map(a => `✕ ${esc(ASPECTS[a].label)}`),
@@ -160,41 +222,66 @@ function renderHeard(el) {
   ];
   el.innerHTML = bits.length ? `Heard: ${bits.join(" · ")}` : "Didn't catch an aspect. Try drums, sample, vocals, 808s, piano, angelic…";
 }
-function refreshControls() {
-  $$(".aspect-chips").forEach(renderAspectChips);
-  $$(".heard").forEach(renderHeard);
-  if (ui.tab === "foryou") renderForYouList(); else if (ui.tab === "all") renderMadeForYou();
+// Instant feedback in the player: the top matches for exactly what you picked in this song.
+function renderSheetPicks() {
+  renderAspectChips($("#np-aspects"));
+  renderHeard($("#np-heard"));
+  const p = picks(), box = $("#np-matches");
+  if (!said(p)) { box.innerHTML = ""; return; }
+  box.innerHTML = `<h4 class="mini-head">Songs with ${esc(describe(p, { max: 3 }))}</h4>` +
+    songRecs(seedId(), { limit: 5 }).map(r => recRow(r)).join("");
+}
+function refresh() {
+  renderSheetPicks();
+  if (ui.tab === "all") renderAll();
+  else if (ui.tab === "foryou") renderForYouList();
+  else if (ui.tab === "taste") renderTaste();
+  else if (ui.tab === "rate" && !test) renderRate();
 }
 document.addEventListener("click", (e) => {
   const chip = e.target.closest(".aspect");
   if (chip) cycleAspect(chip.dataset.aspect);
 });
 let typing;
-document.addEventListener("input", (e) => {
-  if (!e.target.matches("#np-text, #fy-text")) return;
-  store.text = e.target.value;
-  store.save();
+$("#np-text").addEventListener("input", (e) => {
+  const id = seedId(), p = picks(id);
+  setPicks(id, { ...p, text: e.target.value });
   clearTimeout(typing);
-  typing = setTimeout(() => {
-    $$("#np-text, #fy-text").forEach(i => { if (i !== e.target) i.value = store.text; });
-    refreshControls();
-  }, 220);
+  typing = setTimeout(refresh, 220);
 });
 
 // ---------- shared row markup ----------
-function trackRow(t, extra = "") {
+function trackRow(t) {
   return `<div class="row ${store.current === t.id ? "playing" : ""}" data-id="${t.id}">
     <button class="row-main" data-play="${t.id}" type="button">
       <img src="${esc(art(t, 100))}" alt="" loading="lazy">
-      <span class="row-text"><b>${esc(t.t)}</b><span>${esc(t.a)}</span>${extra}</span>
+      <span class="row-text"><b>${esc(t.t)}</b><span>${esc(t.a)}</span></span>
     </button></div>`;
+}
+function recRow(r, { votes = false, because = false } = {}) {
+  const t = model.track(r.id), vote = store.feedback[t.id];
+  const why = r.why.length ? r.why.map(w => `<i>${esc(w)}</i>`) : (t.tg || []).slice(0, 2).map(w => `<i class="tag">${esc(w)}</i>`);
+  const from = because && r.because != null ? `<span class="because">Because you like ${esc(becauseLabel(r.because))}</span>` : "";
+  return `<div class="row ${store.current === t.id ? "playing" : ""}" data-id="${t.id}">
+    <button class="row-main" data-play="${t.id}" type="button"><img src="${esc(art(t, 100))}" alt="" loading="lazy">
+    <span class="row-text"><b>${esc(t.t)}</b><span>${esc(t.a)}</span>${from}<span class="why">${why.join("")}</span></span></button>
+    ${votes ? `<button class="vote up ${vote === true ? "on" : ""}" data-vote="${t.id}" data-v="1" type="button" aria-label="More like this">${ICON.up}</button>
+    <button class="vote down ${vote === false ? "on" : ""}" data-vote="${t.id}" data-v="0" type="button" aria-label="Less like this">${ICON.down}</button>` : ""}
+  </div>`;
+}
+function card(id) {
+  const x = model.track(id);
+  return `<button class="card" data-play="${x.id}" type="button"><img src="${esc(art(x))}" alt="" loading="lazy"><b>${esc(x.t)}</b><span>${esc(firstArtist(x.a))}</span></button>`;
+}
+function covers(ids, n = 5) {
+  return `<span class="covers">${ids.slice(0, n).map(id => `<img src="${esc(art(model.track(id), 100))}" alt="">`).join("")}</span>`;
 }
 
 // ---------- views ----------
 function renderView() {
   if (ui.tab === "all") renderAll();
-  else if (ui.tab === "friends") renderFriends();
   else if (ui.tab === "foryou") renderForYou();
+  else if (ui.tab === "taste") renderTaste();
   else if (ui.tab === "rate") renderRate();
 }
 function setTab(tab) {
@@ -206,111 +293,79 @@ function setTab(tab) {
   renderView();
 }
 
-function liveCard() {
-  const online = social.state.filter(f => f.online);
-  return `<button class="live" data-goto="friends" type="button">
-    <span class="live-head"><span class="live-label"><span class="dot"></span>FRIENDS ARE LIVE</span>
-    <span class="online"><span class="dot"></span>${online.length} online</span></span>
-    <span class="stack">${online.map(f => avatar(f, "", 1)).join("")}<span class="more">+${FRIENDS.length - online.length}</span></span>
-  </button>`;
-}
-
-function friendBlock(f) {
-  const t = model.track(f.track), open = ui.openFriends.has(f.id), mine = social.myReaction(f);
-  const reactions = Object.entries(f.reactions).map(([e, n]) =>
-    `<button class="react ${mine === e ? "mine" : ""}" data-react="${e}" data-friend="${f.id}" type="button"><span>${e}</span><span class="n">${n}</span></button>`).join("");
-  const comments = social.commentsFor(f).map(c => {
-    const who = social.person(c.who);
-    return `<div class="comment">${avatar(who)}<div><b>${esc(who.name)}</b><time>${ago(c.at)}</time><p>${esc(c.text)}</p></div></div>`;
-  }).join("");
-  return `<div class="friend ${open ? "open" : ""}" data-friend="${f.id}">
-    <button class="friend-row" data-toggle="${f.id}" type="button" aria-expanded="${open}">
-      <span class="ring ${f.online ? "" : "away"}">${avatar(f)}</span>
-      <span class="friend-text"><b>${esc(f.name)}</b><span class="song">${esc(t.t)}</span>
-      <span class="meta">${esc(t.a)}${t.al ? ` · ${esc(t.al)}` : ""}</span></span>
-      ${f.online ? ICON.chev : `<span class="ago">${ago(f.lastSeen)}</span>`}
-    </button>
-    <div class="friend-more"><div><div class="pad">
-      <button class="cta ghost" data-play="${t.id}" type="button" style="margin:0 0 12px;padding:9px">Play ${esc(t.t.split(" (")[0])}</button>
-      <div class="label">Reactions</div><div class="reacts">${reactions}</div>
-      <div class="label" style="margin-top:12px">Comments</div><div class="comments">${comments}</div>
-      <form class="compose" data-compose="${f.id}">${avatar(social.person("me"))}
-        <input name="c" placeholder="Add a comment…" maxlength="140" autocomplete="off">
-        <button class="send" type="submit" aria-label="Send">${ICON.send}</button></form>
-    </div></div></div>
-  </div>`;
-}
-
 function renderAll() {
-  const v = $("#view-all");
+  const v = $("#view-all"), mine = taste();
   const likedTracks = store.liked.map(id => model.track(id)).filter(Boolean);
+  const described = mine.filter(e => e.weight === 1).slice(0, 3);
+  const mix = mine.length ? tasteRecs({ limit: 10 }) : songRecs(seedId(), { limit: 10 });
   v.innerHTML = `
     <div class="tiles">
       <button class="tile" data-goto-section="liked-section" type="button"><span class="tile-icon liked">${ICON.heart}</span><span>Liked Songs</span></button>
-      <button class="tile" data-goto-section="seeds-section" type="button"><span class="tile-icon saved">${ICON.bookmark}</span><span>Your Seeds</span></button>
+      <button class="tile" data-goto="taste" type="button"><span class="tile-icon taste">${ICON.sliders}</span><span>Your taste</span></button>
       ${seeds.slice(0, 4).map(id => { const t = model.track(id);
         return `<button class="tile" data-play="${id}" type="button"><img src="${esc(art(t, 100))}" alt=""><span>${esc(t.t)}</span></button>`; }).join("")}
     </div>
-    ${liveCard()}
-    <h2 class="section">Listening now</h2>
-    <div id="all-friends">${social.state.filter(f => f.online).slice(0, 3).map(friendBlock).join("")}</div>
     <h2 class="section">Made for you</h2>
-    <p class="sub" id="mfy-sub"></p>
-    <div class="cards" id="mfy"></div>
+    <p class="sub">${mine.length ? `From what you love in ${mine.length} song${mine.length > 1 ? "s" : ""}`
+      : `Sounds like ${esc(model.track(seedId()).t)}. Open the player and tell it what hits.`}</p>
+    <div class="cards">${mix.map(r => card(r.id)).join("")}</div>
+    ${described.map(e => `<h2 class="section because-head">Because you like ${esc(becauseLabel(e.seed))}</h2>
+      <div class="cards">${songRecs(e.seed, { limit: 10 }).map(r => card(r.id)).join("")}</div>`).join("")}
     <h2 class="section" id="seeds-section">Your seeds</h2>
     ${seeds.map(id => trackRow(model.track(id))).join("")}
     <h2 class="section" id="liked-section">Liked Songs</h2>
     ${likedTracks.length ? likedTracks.map(t => trackRow(t)).join("") : '<p class="empty">Tap ♥ in the player to save songs here.</p>'}`;
-  renderMadeForYou();
-}
-function renderMadeForYou() {
-  const box = $("#mfy");
-  if (!box) return;
-  const t = model.track(seedId()), asp = liked();
-  $("#mfy-sub").textContent = asp.length || store.text
-    ? `The ${asp.map(a => ASPECTS[a].label.toLowerCase().replace(/^the /, "")).join(" + ") || "parts you described"} in ${t.t}`
-    : `Sounds like ${t.t}. Open the player to say what hits.`;
-  box.innerHTML = recs({ limit: 10 }).map(r => { const x = model.track(r.id);
-    return `<button class="card" data-play="${x.id}" type="button"><img src="${esc(art(x))}" alt="" loading="lazy"><b>${esc(x.t)}</b><span>${esc(firstArtist(x.a))}</span></button>`; }).join("");
-}
-
-function renderFriends() {
-  const online = social.state.filter(f => f.online), recent = social.state.filter(f => !f.online);
-  $("#view-friends").innerHTML = `${liveCard()}
-    <h2 class="section">Listening now</h2><div>${online.map(friendBlock).join("")}</div>
-    <h2 class="section">Recently</h2><div class="recent">${recent.map(friendBlock).join("")}</div>`;
 }
 
 function renderForYou() {
-  const t = model.track(seedId());
-  $("#view-foryou").innerHTML = `
-    <div class="foryou-head">
-      <div class="foryou-seed"><img src="${esc(art(t, 100))}" alt=""><div><span>Because of</span><b>${esc(t.t)}</b><span>${esc(t.a)}</span></div></div>
-      <div class="aspect-chips"></div>
-      <label class="say"><input id="fy-text" type="text" value="${esc(store.text)}" placeholder="Or say it: the angelic sample and the drums…" autocomplete="off"></label>
-      <p class="heard"></p>
-    </div>
-    <h2 class="section">For You</h2>
-    <div id="fy-list"></div>
-    <button class="cta ghost" data-goto="rate" type="button" style="margin-top:18px">Rate these blind vs plain similarity</button>`;
-  renderAspectChips($(".aspect-chips", $("#view-foryou")));
-  renderHeard($(".heard", $("#view-foryou")));
+  const mine = taste();
+  const head = mine.length
+    ? `<div class="foryou-head">
+        <div class="foryou-seed">${covers(mine.map(e => e.seed))}
+          <div><b>Your mix</b><span>Built from what you love in ${mine.length} song${mine.length > 1 ? "s" : ""}</span></div></div>
+        <button class="cta ghost" data-goto="taste" type="button">See or edit your taste</button>
+      </div>`
+    : `<div class="foryou-head empty-head"><b>Your For You starts with one song.</b>
+        <span>Play something you love, open the player and tap what hits: the drums, the sample, the vocals.
+        Do it for a few songs and this list becomes your taste. Until then it's plain “sounds like ${esc(short(model.track(seedId()).t))}”.</span>
+        <button class="cta" data-open-player type="button">Open the player</button></div>`;
+  $("#view-foryou").innerHTML = `${head}<h2 class="section">For You</h2><div id="fy-list"></div>`;
   renderForYouList();
 }
 function renderForYouList() {
   const list = $("#fy-list");
   if (!list) return;
-  const results = recs();
-  list.innerHTML = results.map(r => {
-    const t = model.track(r.id), vote = store.feedback[t.id];
-    const why = [...r.why.map(w => `<i>${esc(w)}</i>`), ...(r.why.length ? [] : (t.tg || []).slice(0, 2).map(w => `<i class="tag">${esc(w)}</i>`))];
-    return `<div class="row ${store.current === t.id ? "playing" : ""}" data-id="${t.id}">
-      <button class="row-main" data-play="${t.id}" type="button"><img src="${esc(art(t, 100))}" alt="" loading="lazy">
-      <span class="row-text"><b>${esc(t.t)}</b><span>${esc(t.a)}</span><span class="why">${why.join("")}</span></span></button>
-      <button class="vote up ${vote === true ? "on" : ""}" data-vote="${t.id}" data-v="1" type="button" aria-label="More like this">${ICON.up}</button>
-      <button class="vote down ${vote === false ? "on" : ""}" data-vote="${t.id}" data-v="0" type="button" aria-label="Less like this">${ICON.down}</button>
-    </div>`;
-  }).join("") || '<p class="empty">Nothing left. Clear some votes.</p>';
+  const mine = taste();
+  const results = mine.length ? tasteRecs({ limit: 20 }) : songRecs(seedId(), { limit: 20 });
+  list.innerHTML = results.map(r => recRow(r, { votes: true, because: mine.length > 1 })).join("")
+    || '<p class="empty">Nothing left. Clear some votes.</p>';
+}
+
+function renderTaste() {
+  const mine = taste();
+  const rows = mine.map(e => {
+    const t = model.track(e.seed), p = picks(e.seed);
+    const chips = [...p.liked.map(a => `<i>♥ ${esc(ASPECTS[a].label)}</i>`),
+                   ...p.disliked.map(a => `<i class="no">✕ ${esc(ASPECTS[a].label)}</i>`),
+                   ...(p.text.trim() ? [`<i class="said">“${esc(p.text.trim())}”</i>`] : []),
+                   ...(e.weight < 1 ? ['<i class="tag">♥ the whole song</i>'] : [])];
+    return `<div class="row taste-row">
+      <button class="row-main" data-play="${t.id}" data-open="1" type="button"><img src="${esc(art(t, 100))}" alt="" loading="lazy">
+      <span class="row-text"><b>${esc(t.t)}</b><span>${esc(t.a)}</span><span class="why">${chips.join("")}</span></span></button>
+      <button class="vote" data-forget="${t.id}" type="button" aria-label="Remove from your taste">${ICON.x}</button></div>`;
+  }).join("");
+  $("#view-taste").innerHTML = `
+    <div class="how">
+      <b>How your For You is built</b>
+      <ol>
+        <li><span>1</span><p>Every song is split into its parts (drums, 808s/bass, melody and samples, vocals) and each part gets its own sound fingerprint. Genius adds who produced it, what it samples and who sang backing vocals.</p></li>
+        <li><span>2</span><p>When you tap <em>The sample</em> on a song, every other song is scored on how close its sample part is to this one, plus a little whole-song similarity so it stays in the same lane. Tapping twice pushes that part away.</p></li>
+        <li><span>3</span><p>Each song you describe below is one vote in your taste. A song ranks high when it strongly matches one of them, with a bonus when it matches several. 👍 and 👎 in For You nudge it further.</p></li>
+      </ol>
+    </div>
+    <h2 class="section">Your taste <span class="count">${mine.length} song${mine.length === 1 ? "" : "s"}</span></h2>
+    ${rows || '<p class="empty">Nothing yet. Play a song, open the player and tap what hits for you.</p>'}
+    ${mine.length ? '<button class="cta ghost" id="clear-taste" type="button">Start over</button>' : ""}`;
 }
 
 // ---------- blind A/B rating ----------
@@ -320,15 +375,16 @@ function shuffle(list) {
   return a;
 }
 function startTest() {
-  const ask = { seed: seedId(), liked: liked(), disliked: disliked(), text: store.text };
-  if (!ask.liked.length && !ask.disliked.length && !ask.text.trim()) {
+  const ask = { seed: seedId(), ...picks() };
+  if (!said(ask)) {
     toast("First pick what hits (or type it) for this song");
     return;
   }
   const a = model.recommend({ ...ask, limit: 5, feedback: {} }).map(r => r.id);
   const p = model.recommend({ ...ask, limit: 5, feedback: {}, mode: "plain" }).map(r => r.id);
   const ids = [...new Set([...a, ...p])];
-  test = { ...ask, at: Date.now(), items: shuffle(ids).map(id => ({ id, methods: [a.includes(id) && "aspect", p.includes(id) && "plain"].filter(Boolean) })), ratings: {} };
+  test = { seed: ask.seed, liked: ask.liked, disliked: ask.disliked, text: ask.text, at: Date.now(),
+           items: shuffle(ids).map(id => ({ id, methods: [a.includes(id) && "aspect", p.includes(id) && "plain"].filter(Boolean) })), ratings: {} };
   renderRate();
 }
 function summary(tests) {
@@ -343,15 +399,14 @@ function summary(tests) {
 function ratedCount() { return store.tests.reduce((n, t) => n + Object.keys(t.ratings).length, 0) + (test ? Object.keys(test.ratings).length : 0); }
 function renderRate() {
   const v = $("#view-rate"), t = model.track(seedId());
-  const ask = [...liked().map(a => ASPECTS[a].label.toLowerCase()), ...disliked().map(a => `not ${ASPECTS[a].label.toLowerCase()}`),
-               ...(store.text ? [`“${store.text}”`] : [])].join(", ");
   let body = "";
   if (!test) {
+    const ask = describe(picks(), { max: 9 });
     body = `<button class="cta" id="start-test" type="button">Start a blind round for ${esc(t.t)}</button>
-      <p class="sub" style="margin-top:10px">Asking for: ${esc(ask || "nothing yet. Pick aspects in the player or For You first.")}</p>`;
+      <p class="sub" style="margin-top:10px">Asking for: ${esc(ask || "nothing yet. Open the player and pick what hits in this song first.")}</p>`;
   } else {
     const done = test.items.every(i => test.ratings[i.id]);
-    body = `<p class="sub">How well does each song match <b>${esc(ask || "your request")}</b> in ${esc(model.track(test.seed).t)}? 1 = not at all, 5 = exactly.</p>
+    body = `<p class="sub">How well does each song match <b>${esc(describe(test, { max: 9 }) || "your request")}</b> in ${esc(model.track(test.seed).t)}? 1 = not at all, 5 = exactly.</p>
       ${test.items.map(item => { const x = model.track(item.id), r = test.ratings[item.id];
         return `<div class="row ${store.current === x.id ? "playing" : ""}"><button class="row-main" data-play="${x.id}" type="button"><img src="${esc(art(x, 100))}" alt="">
           <span class="row-text"><b>${esc(x.t)}</b><span>${esc(x.a)}</span>
@@ -413,7 +468,8 @@ $("#mini-open").addEventListener("click", openSheet);
 $("#sheet-close").addEventListener("click", closeSheet);
 $("#mini-play").addEventListener("click", togglePlay);
 $("#np-play").addEventListener("click", togglePlay);
-$("#np-next").addEventListener("click", nextRec);
+$("#np-next").addEventListener("click", next);
+$("#np-prev").addEventListener("click", back);
 $("#np-foryou").addEventListener("click", () => { closeSheet(); setTab("foryou"); });
 $("#np-like").addEventListener("click", () => {
   const id = seedId(), i = store.liked.indexOf(id);
@@ -421,6 +477,7 @@ $("#np-like").addEventListener("click", () => {
   store.save();
   $("#np-like").classList.toggle("on", i < 0);
   toast(i < 0 ? "Added to Liked Songs" : "Removed from Liked Songs");
+  refresh();
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { closeSheet(); closeSearch(); }
@@ -428,26 +485,28 @@ document.addEventListener("keydown", (e) => {
 
 // ---------- delegated clicks ----------
 document.addEventListener("click", (e) => {
-  const el = e.target.closest("[data-play],[data-goto],[data-goto-section],[data-toggle],[data-react],[data-vote],[data-rate],#start-test,#finish-test,#export-ratings,[data-tab],[data-nav]");
+  const el = e.target.closest("[data-play],[data-goto],[data-goto-section],[data-vote],[data-rate],[data-forget],[data-open-player],#start-test,#finish-test,#export-ratings,#clear-taste,[data-tab],[data-nav]");
   if (!el) return;
   if (el.dataset.rate) {
     test.ratings[el.dataset.rate] = +el.dataset.n;
     renderRate();
     return;
   }
-  if (el.dataset.play) { closeSearch(); play(+el.dataset.play); return; }
-  if (el.dataset.goto) { setTab(el.dataset.goto); return; }
+  if (el.dataset.play) { closeSearch(); play(+el.dataset.play, { open: !!el.dataset.open }); return; }
+  if (el.dataset.goto) { closeSheet(); setTab(el.dataset.goto); return; }
   if (el.dataset.gotoSection) { document.getElementById(el.dataset.gotoSection)?.scrollIntoView({ behavior: "smooth" }); return; }
   if (el.dataset.tab) { setTab(el.dataset.tab); return; }
   if (el.dataset.nav) { el.dataset.nav === "search" ? openSearch() : setTab(el.dataset.nav); return; }
-  if (el.dataset.toggle) {
-    const id = el.dataset.toggle;
-    if (!social.friend(id).online) return;
-    ui.openFriends.has(id) ? ui.openFriends.delete(id) : ui.openFriends.add(id);
-    $$(`.friend[data-friend="${id}"]`).forEach(b => { b.classList.toggle("open"); b.querySelector(".friend-row").setAttribute("aria-expanded", String(ui.openFriends.has(id))); });
+  if (el.hasAttribute("data-open-player")) { if (!store.current) play(seedId()); openSheet(); return; }
+  if (el.dataset.forget) {
+    const id = +el.dataset.forget;
+    delete store.songs[id];
+    store.liked = store.liked.filter(x => x !== id);
+    store.save();
+    toast("Removed from your taste");
+    refresh();
     return;
   }
-  if (el.dataset.react) { social.react(el.dataset.friend, el.dataset.react); return; }
   if (el.dataset.vote) {
     const id = +el.dataset.vote, v = el.dataset.v === "1";
     if (store.feedback[id] === v) delete store.feedback[id]; else store.feedback[id] = v;
@@ -456,48 +515,25 @@ document.addEventListener("click", (e) => {
     renderForYouList();
     return;
   }
+  if (el.id === "clear-taste") {
+    store.songs = {};
+    store.liked = [];
+    store.feedback = {};
+    store.save();
+    toast("Taste cleared");
+    refresh();
+  }
   if (el.id === "start-test") startTest();
   if (el.id === "finish-test") finishTest();
   if (el.id === "export-ratings") exportRatings();
 });
-document.addEventListener("submit", (e) => {
-  const form = e.target.closest("[data-compose]");
-  if (!form) return;
-  e.preventDefault();
-  const text = form.c.value.trim();
-  if (!text) return;
-  form.c.value = "";
-  social.comment(form.dataset.compose, text);
-});
-
-// Live social updates patch just the affected friend so open panels and inputs survive.
-function patchFriend(id, kind) {
-  const f = social.friend(id);
-  $$(`.friend[data-friend="${id}"]`).forEach(node => {
-    const input = node.querySelector("input"), draft = input?.value, focused = document.activeElement === input;
-    const fresh = document.createElement("div");
-    fresh.innerHTML = friendBlock(f);
-    const next = fresh.firstElementChild;
-    node.replaceWith(next);
-    const newInput = next.querySelector("input");
-    if (newInput && draft) newInput.value = draft;
-    if (focused) newInput?.focus();
-    if (kind.startsWith("bump:")) {
-      const chip = next.querySelector(`[data-react="${kind.slice(5)}"]`);
-      chip?.classList.add("bump");
-    }
-    if (kind === "comment") next.querySelector(".comment:last-child")?.classList.add("new");
-  });
-  if (kind === "track") $$(".live").forEach(l => { l.outerHTML = liveCard(); });
-}
 
 // ---------- intro ----------
 function runIntro(force = false) {
   const intro = $("#intro");
   if (store.introSeen && !force) { intro.classList.add("done"); return; }
   intro.classList.remove("done");
-  $("#intro-avatars").innerHTML = FRIENDS.slice(0, 3).map(f => avatar(f, "", 1)).join("");
-  const steps = $$("[data-step]", intro), times = [300, 2100, 3600, 5000, 6900], end = 8900;
+  const steps = $$("[data-step]", intro), times = [300, 2100, 4100, 6100, 8100], end = 10100;
   const timers = steps.map((el, k) => setTimeout(() => {
     steps.forEach(s => s.classList.remove("on"));
     el.classList.add("on");
@@ -523,13 +559,9 @@ $("#me").addEventListener("click", () => runIntro(true));
     && t.a.toLowerCase().includes(artist.toLowerCase()))?.id).filter(Boolean);
   if (!seeds.length) seeds = model.tracks.slice(0, 8).map(t => t.id);
   if (store.current && !model.track(store.current)) store.current = null;
-  // Friends listen to songs near your seeds, so the feed feels like your circle.
-  const pool = [...new Set(seeds.flatMap(s => model.recommend({ seed: s, limit: 12, diversity: false }).map(r => r.id)))];
-  social = new Social(model, pool, store);
-  social.addEventListener("change", (e) => patchFriend(e.detail.id, e.detail.kind));
-  social.start();
+  for (const id of Object.keys(store.songs)) if (!model.track(+id)) delete store.songs[id];
   renderPlayer();
   $("#mini").hidden = !store.current;
   setTab("all");
-  window.facets = { model, store, social };  // handy for debugging in the console
+  window.facets = { model, store, trail, taste };  // handy for debugging in the console
 })();
