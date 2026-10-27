@@ -23,6 +23,8 @@ Spotify-style, after the "Spotify 2.0" concept reel by @xzecreative.
    songs it came from ("Because you like the sample in Champagne Poetry"). 👍/👎 nudge the list.
 4. **Your taste** lists what you've said about each song. Tap a song to change its picks or ✕ to
    drop it. Hearted songs you didn't describe count as "the whole song" at half weight.
+5. It's for discovering: a song you've described, hearted, voted on or blind-rated is never
+   recommended again, in any list.
 
 ## How it works
 
@@ -56,7 +58,9 @@ Genius API ──► producers, writers, samples, background-vocal credits ─�
    `mean over your songs + 0.5 · best single match`, so it wins by strongly matching one of your
    songs and gets a bonus for matching several. During MMR each extra pick traced to the same one
    of your songs costs 0.5, so one song can't take over the mix (with three described songs the
-   top 15 split 6 / 5 / 4).
+   top 15 split 6 / 5 / 4). A song where you only picked what you *don't* like (✕) is not a vote:
+   songs whose ✕ parts sound like it lose `0.5 · z(part similarity)`, and it is never named in a
+   "Because you like…". Every rated song (and other versions of it) is excluded from every list.
 
 ## Results
 

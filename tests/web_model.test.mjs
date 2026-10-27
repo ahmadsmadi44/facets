@@ -73,6 +73,34 @@ test("taste profile mixes songs, excludes them and says which one each pick came
   assert.ok(from.has(seed) && from.has(other), "both songs should contribute");
 });
 
+test("songs you've rated are never recommended again", () => {
+  const first = model.recommend({ seed, liked: ["sample"], limit: 10 }).map(r => r.id);
+  const exclude = first.slice(0, 5);
+  const again = model.recommend({ seed, liked: ["sample"], limit: 10, exclude }).map(r => r.id);
+  assert.ok(!again.some(id => exclude.includes(id)));
+  const prof = model.profile([{ seed, liked: ["sample"], disliked: [], text: "" }], { limit: 10, exclude }).map(r => r.id);
+  assert.ok(!prof.some(id => exclude.includes(id)));
+});
+
+test("a song with only ✕ picks is never a 'because you like' and pushes its parts down", () => {
+  const other = (byTitle("I Got A Story") || model.tracks[1]).id;
+  const like = { seed, liked: ["sample"], disliked: [], text: "" };
+  const avoid = { seed: other, liked: [], disliked: ["drums"], text: "" };
+  assert.ok(model.positive(like) && !model.positive(avoid) && model.positive({ ...avoid, loved: true }));
+  const recs = model.profile([like, avoid], { limit: 30 });
+  assert.ok(recs.length && recs.every(r => r.because === seed));
+  assert.ok(!recs.some(r => r.id === other));
+  assert.deepEqual(model.profile([avoid], { limit: 10 }), []);
+  // Songs whose drums sound most like the avoided song's drop in the mix.
+  const drumsLike = model.recommend({ seed: other, liked: ["drums"], limit: 200, diversity: false }).map(r => r.id);
+  const pos = (list, id) => { const i = list.indexOf(id); return i < 0 ? Infinity : i; };
+  const plain = model.profile([like], { limit: 200, diversity: false }).map(r => r.id);
+  const steered = model.profile([like, avoid], { limit: 200, diversity: false }).map(r => r.id);
+  const shared = drumsLike.filter(id => plain.includes(id)).slice(0, 10);
+  const moved = shared.filter(id => pos(steered, id) > pos(plain, id)).length;
+  assert.ok(moved >= shared.length * 0.7, `only ${moved}/${shared.length} moved down`);
+});
+
 test("text parsing separates background vocals, negation and descriptors", () => {
   const p = model.parse("the angelic sample and background vocals, but not the drums");
   assert.deepEqual(p.liked.sort(), ["backing", "sample"]);

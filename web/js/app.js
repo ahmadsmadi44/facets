@@ -89,13 +89,21 @@ function taste() {
     .map(([id, p]) => ({ seed: +id, liked: p.liked, disliked: p.disliked, text: p.text, weight: 1 }));
   const hearted = store.liked.filter(id => !store.songs[id])
     .map(id => ({ seed: id, liked: [], disliked: [], text: "", weight: 0.5 }));
-  return [...described, ...hearted].filter(e => model.track(e.seed));
+  return [...described, ...hearted].filter(e => model.track(e.seed))
+    .map(e => ({ ...e, loved: store.liked.includes(e.seed) }));
+}
+// The songs in your taste that vote for something; ones with only ✕ picks just steer away.
+const liking = () => taste().filter(e => model.positive(e));
+// Every song you've rated in any way. Recommendations are for discovering, so these never come back.
+function rated() {
+  return [...new Set([...Object.keys(store.songs).map(Number), ...store.liked, ...Object.keys(store.feedback).map(Number),
+                      ...store.tests.flatMap(t => Object.keys(t.ratings).map(Number))])];
 }
 function songRecs(id = seedId(), opts = {}) {
-  return model.recommend({ seed: id, ...picks(id), feedback: store.feedback, limit: 12, ...opts });
+  return model.recommend({ seed: id, ...picks(id), feedback: store.feedback, exclude: rated(), limit: 12, ...opts });
 }
 function tasteRecs(opts = {}) {
-  return model.profile(taste(), { feedback: store.feedback, limit: 12, ...opts });
+  return model.profile(taste(), { feedback: store.feedback, exclude: rated(), limit: 12, ...opts });
 }
 function describe(p, { max = 4 } = {}) {
   const parts = [...p.liked.map(a => ASPECTS[a].label.toLowerCase().replace(/^the /, "")),
@@ -154,7 +162,7 @@ audio.addEventListener("timeupdate", () => {
 function next() {
   if (trail.fwd.length) return play(trail.fwd.pop(), { via: "fwd" });
   const heard = new Set([...trail.back, seedId()]);
-  const list = said(picks()) || !taste().length ? songRecs(seedId(), { limit: 40 }) : tasteRecs({ limit: 40 });
+  const list = said(picks()) || !liking().length ? songRecs(seedId(), { limit: 40 }) : tasteRecs({ limit: 40 });
   const pick = list.find(r => !heard.has(r.id));
   if (pick) play(pick.id, { via: "next" });
 }
@@ -294,7 +302,7 @@ function setTab(tab) {
 }
 
 function renderAll() {
-  const v = $("#view-all"), mine = taste();
+  const v = $("#view-all"), mine = liking();
   const likedTracks = store.liked.map(id => model.track(id)).filter(Boolean);
   const described = mine.filter(e => e.weight === 1).slice(0, 3);
   const mix = mine.length ? tasteRecs({ limit: 10 }) : songRecs(seedId(), { limit: 10 });
@@ -318,7 +326,7 @@ function renderAll() {
 }
 
 function renderForYou() {
-  const mine = taste();
+  const mine = liking();
   const head = mine.length
     ? `<div class="foryou-head">
         <div class="foryou-seed">${covers(mine.map(e => e.seed))}
@@ -335,10 +343,10 @@ function renderForYou() {
 function renderForYouList() {
   const list = $("#fy-list");
   if (!list) return;
-  const mine = taste();
+  const mine = liking();
   const results = mine.length ? tasteRecs({ limit: 20 }) : songRecs(seedId(), { limit: 20 });
   list.innerHTML = results.map(r => recRow(r, { votes: true, because: mine.length > 1 })).join("")
-    || '<p class="empty">Nothing left. Clear some votes.</p>';
+    || '<p class="empty">You\'ve rated everything that matches. Describe another song to widen it.</p>';
 }
 
 function renderTaste() {
@@ -360,7 +368,8 @@ function renderTaste() {
       <ol>
         <li><span>1</span><p>Every song is split into its parts (drums, 808s/bass, melody and samples, vocals) and each part gets its own sound fingerprint. Genius adds who produced it, what it samples and who sang backing vocals.</p></li>
         <li><span>2</span><p>When you tap <em>The sample</em> on a song, every other song is scored on how close its sample part is to this one, plus a little whole-song similarity so it stays in the same lane. Tapping twice pushes that part away.</p></li>
-        <li><span>3</span><p>Each song you describe below is one vote in your taste. A song ranks high when it strongly matches one of them, with a bonus when it matches several. 👍 and 👎 in For You nudge it further.</p></li>
+        <li><span>3</span><p>Each song you like something in is one vote in your taste. A song ranks high when it strongly matches one of them, with a bonus when it matches several. A song where you only tapped ✕ isn't a like: it pushes songs with those parts down. 👍 and 👎 in For You nudge it further.</p></li>
+        <li><span>4</span><p>It's for discovering: a song you've described, hearted, voted on or rated is never recommended again.</p></li>
       </ol>
     </div>
     <h2 class="section">Your taste <span class="count">${mine.length} song${mine.length === 1 ? "" : "s"}</span></h2>
@@ -380,8 +389,8 @@ function startTest() {
     toast("First pick what hits (or type it) for this song");
     return;
   }
-  const a = model.recommend({ ...ask, limit: 5, feedback: {} }).map(r => r.id);
-  const p = model.recommend({ ...ask, limit: 5, feedback: {}, mode: "plain" }).map(r => r.id);
+  const a = model.recommend({ ...ask, limit: 5, feedback: {}, exclude: rated() }).map(r => r.id);
+  const p = model.recommend({ ...ask, limit: 5, feedback: {}, exclude: rated(), mode: "plain" }).map(r => r.id);
   const ids = [...new Set([...a, ...p])];
   test = { seed: ask.seed, liked: ask.liked, disliked: ask.disliked, text: ask.text, at: Date.now(),
            items: shuffle(ids).map(id => ({ id, methods: [a.includes(id) && "aspect", p.includes(id) && "plain"].filter(Boolean) })), ratings: {} };

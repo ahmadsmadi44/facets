@@ -22,6 +22,8 @@ const STEMS = ["mix", "drums", "bass", "other", "vocals"];
 export const COHERENCE = 0.8;
 // Score cost of each extra taste-mix pick that comes from the same one of your songs.
 const SOURCE_PENALTY = 0.5;
+// How hard a song with only ✕ picks pushes down songs whose parts sound like those.
+const AVOID = 0.5;
 const KEYWORDS = {
   drums: /\b(drum|drums|beat|hi-?hats?|snare|kick|percussion|boom ?bap|knock|bounce|riddim|groove)/,
   bass: /\b(808s?|bass|bassline|sub)/,
@@ -175,11 +177,29 @@ export class Model {
     return values.map(v => (v - mean) / std);
   }
 
+  /** Indices of these track ids and every other version of the same title. */
+  versions(ids) {
+    const seen = new Set();
+    for (const id of ids) {
+      const i = this.index.get(+id);
+      if (i === undefined) continue;
+      seen.add(i);
+      for (const j of this.keyOwners.get(this.tracks[i].key) || []) seen.add(j);
+    }
+    return seen;
+  }
+
+  /** True when an entry says something you like. One with only ✕ picks is something to avoid. */
+  positive(e) {
+    if (e.loved || e.liked?.length) return true;
+    const p = this.parse(e.text);
+    return p.liked.length > 0 || p.descriptors.length > 0;
+  }
+
   /** Score every track for one request: a sum of z-scored parts, plus what's needed to explain it. */
-  score({ seed, liked = [], disliked = [], text = "", feedback = {}, mode = "aspect" }) {
+  score({ seed, liked = [], disliked = [], text = "", feedback = {}, exclude = [], mode = "aspect" }) {
     const s = this.index.get(seed);
-    const seen = new Set([s, ...Object.keys(feedback).map(id => this.index.get(+id)).filter(i => i !== undefined),
-                          ...(this.keyOwners.get(this.tracks[s].key) || [])]);
+    const seen = this.versions([seed, ...Object.keys(feedback), ...exclude]);
     const parsed = this.parse(text);
     liked = [...new Set([...liked, ...parsed.liked])].filter(a => !disliked.includes(a));
     disliked = [...new Set([...disliked, ...parsed.disliked])];
@@ -237,11 +257,15 @@ export class Model {
    * Your taste across songs. Each song you described is one request, scored as in recommend()
    * and re-standardised so every song counts the same. A candidate's score is the mean over your
    * songs plus half the best single match: it wins by matching one of your songs strongly and
-   * gets a bonus for matching several. `because` is the song that match came from.
+   * gets a bonus for matching several. `because` is the song that match came from, and is only
+   * ever a song you like: a song where you only said what you don't like (✕) never votes for
+   * anything, it pushes songs with those parts down instead.
    */
-  profile(entries, { feedback = {}, limit = 12, diversity = true } = {}) {
-    if (!entries.length) return [];
-    const runs = entries.map(e => ({ e, r: this.score({ ...e, feedback }) }));
+  profile(entries, { feedback = {}, exclude = [], limit = 12, diversity = true } = {}) {
+    const likes = entries.filter(e => this.positive(e)), avoids = entries.filter(e => !this.positive(e));
+    if (!likes.length) return [];
+    exclude = [...exclude, ...entries.map(e => e.seed)];
+    const runs = likes.map(e => ({ e, r: this.score({ ...e, feedback, exclude }) }));
     const seen = new Set(runs.flatMap(({ r }) => [...r.seen]));
     const mean = new Float32Array(this.n), best = new Float32Array(this.n).fill(-Infinity), from = new Int32Array(this.n);
     let weights = 0;
@@ -255,6 +279,12 @@ export class Model {
       }
     });
     const total = mean.map((m, i) => m / weights + 0.5 * best[i]);
+    // Songs whose ✕ parts sound like the parts you said you don't like in that song.
+    for (const e of avoids) {
+      const r = this.score({ seed: e.seed, liked: [], disliked: e.disliked, text: e.text, feedback, exclude });
+      const parts = Object.keys(r.parts).filter(k => !k.startsWith("_"));
+      for (const k of parts) for (let i = 0; i < this.n; i++) total[i] -= AVOID * r.parts[k][i] / parts.length / avoids.length;
+    }
     return this.rank(total, seen, limit, diversity, from).map(i => {
       const { e, r } = runs[from[i]];
       return { id: this.tracks[i].id, score: total[i], because: e.seed, why: this.explain(i, r.s, r.liked, r.parts, r.parsed) };
